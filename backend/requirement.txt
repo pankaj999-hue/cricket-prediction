@@ -1,0 +1,8 @@
+# backend/requirements.txt
+psycopg2-binary
+python-dotenv
+sqlalchemy
+fastapi
+uvicorn
+pandas
+numpy
