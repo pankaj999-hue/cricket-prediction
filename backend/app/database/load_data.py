@@ -14,12 +14,87 @@ def clean_player_name(name):
     """Ensure consistent player names"""
     return name.strip() if name else None
 
+def normalize_venue(venue_name):
+    """Map all IPL venue name variations to a standard name"""
+    if not venue_name:
+        return venue_name
+    
+    v = venue_name.lower()
+    
+    if 'wankhede' in v:
+        return 'Wankhede Stadium, Mumbai'
+    if 'brabourne' in v:
+        return 'Brabourne Stadium, Mumbai'
+    if 'dy patil' in v:
+        return 'DY Patil Stadium, Navi Mumbai'
+    if 'chinnaswamy' in v:
+        return 'M Chinnaswamy Stadium, Bengaluru'
+    if 'chepauk' in v or 'chidambaram' in v:
+        return 'MA Chidambaram Stadium, Chepauk, Chennai'
+    if 'eden' in v:
+        return 'Eden Gardens, Kolkata'
+    if 'arun' in v or 'kotla' in v or 'feroz' in v:
+        return 'Arun Jaitley Stadium, Delhi'
+    if 'rajiv gandhi' in v or 'uppal' in v:
+        return 'Rajiv Gandhi International Stadium, Hyderabad'
+    if 'narendra modi' in v or 'motera' in v:
+        return 'Narendra Modi Stadium, Ahmedabad'
+    if 'sawai' in v or 'mansingh' in v:
+        return 'Sawai Mansingh Stadium, Jaipur'
+    if 'mohali' in v or 'punjab cricket' in v or 'pca' in v:
+        return 'Punjab Cricket Association Stadium, Mohali'
+    if 'maharaja yadavindra' in v or 'new chandigarh' in v:
+        return 'Maharaja Yadavindra Singh International Cricket Stadium, New Chandigarh'
+    if 'ekana' in v or 'atal bihari' in v:
+        return 'BRSABV Ekana Cricket Stadium, Lucknow'
+    if 'dharamsala' in v or 'hpca' in v:
+        return 'HPCA Stadium, Dharamsala'
+    if 'guwahati' in v or 'barsapara' in v:
+        return 'Barsapara Cricket Stadium, Guwahati'
+    if 'indore' in v or 'holkar' in v:
+        return 'Holkar Cricket Stadium, Indore'
+    if 'raipur' in v or 'shaheed' in v:
+        return 'Shaheed Veer Narayan Singh International Stadium, Raipur'
+    if 'ranchi' in v or 'jsca' in v:
+        return 'JSCA International Stadium Complex, Ranchi'
+    if 'visakhapatnam' in v or 'vizag' in v or 'dr ys' in v:
+        return 'Dr YS Rajasekhara Reddy Cricket Stadium, Visakhapatnam'
+    if 'pune' in v or 'maharashtra cricket' in v or 'mca' in v:
+        return 'Maharashtra Cricket Association Stadium, Pune'
+    if 'thiruvananthapuram' in v or 'trivandrum' in v or 'greenfield' in v:
+        return 'Greenfield International Stadium, Thiruvananthapuram'
+    if 'cuttack' in v or 'barabati' in v:
+        return 'Barabati Stadium, Cuttack'
+    if 'dehradun' in v:
+        return 'Rajiv Gandhi International Cricket Stadium, Dehradun'
+    if 'kochi' in v or 'jawaharlal' in v:
+        return 'Jawaharlal Nehru Stadium, Kochi'
+    if 'nagpur' in v or 'vidarbha' in v or 'vca' in v:
+        return 'Vidarbha Cricket Association Stadium, Nagpur'
+    if 'dubai' in v:
+        return 'Dubai International Cricket Stadium, Dubai'
+    if 'abu dhabi' in v:
+        return 'Sheikh Zayed Stadium, Abu Dhabi'
+    if 'sharjah' in v:
+        return 'Sharjah Cricket Stadium, Sharjah'
+    if 'green park' in v:
+        return 'Green Park, Kanpur'
+    if 'nehru' in v:
+        return 'Nehru Stadium, Kochi'
+    if 'saurashtra' in v:
+        return 'Saurashtra Cricket Association Stadium, Rajkot'
+    if 'sahara' in v:
+        return 'Subrata Roy Sahara Stadium, Pune'
+    
+    return venue_name
+
 def parse_match(file_path):
     """Extract match info from a single JSON"""
     with open(file_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
     
     info = data.get("info", {})
+    
     
     # Extract match info
     match = {
@@ -29,7 +104,7 @@ def parse_match(file_path):
         "format": info.get("match_type", "T20"),
         "event": info.get("event", {}).get("name", ""),
         "stage": info.get("event", {}).get("stage", ""),
-        "venue": info.get("venue", ""),
+        "venue": normalize_venue(info.get("venue", "")),
         "city": info.get("city", ""),
         "team_a": info.get("teams", [None, None])[0],
         "team_b": info.get("teams", [None, None])[1],
@@ -44,6 +119,7 @@ def parse_match(file_path):
     return match, data
 
 def parse_deliveries(match_id, data):
+    
     """Extract all deliveries from a match"""
     deliveries = []
     registry = data.get("info", {}).get("registry", {}).get("people", {})

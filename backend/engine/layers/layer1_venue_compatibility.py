@@ -5,33 +5,38 @@ def calculate(team_a, team_b, venue):
     """
     Layer 1: Venue Compatibility
     Max points: 15
-    
-    Compares both teams' historical performance at this venue.
-    Factors in win percentage and pitch compatibility.
     """
     MAX_POINTS = 15
     
-    # Get team records at this venue
     team_a_venue = get_team_venue_record(team_a, venue)
     team_b_venue = get_team_venue_record(team_b, venue)
-    venue_profile = get_venue_pitch_profile(venue)
     
-    # Default if no data
+    # Default values
     a_win_pct = 50.0
     b_win_pct = 50.0
     a_matches = 0
     b_matches = 0
     
     if team_a_venue and team_a_venue["matches_played"] >= MIN_MATCHES_VENUE:
-        a_win_pct = team_a_venue["win_percentage"] or 50.0
+        a_win_pct = float(team_a_venue["win_percentage"] or 50.0)
         a_matches = team_a_venue["matches_played"]
     
     if team_b_venue and team_b_venue["matches_played"] >= MIN_MATCHES_VENUE:
-        b_win_pct = team_b_venue["win_percentage"] or 50.0
+        b_win_pct = float(team_b_venue["win_percentage"] or 50.0)
         b_matches = team_b_venue["matches_played"]
     
-    # Calculate the gap
+    # If one team has no data, give home team advantage
+    if a_matches == 0 and b_matches == 0:
+        home = get_home_team(venue)
+        if home == team_a:
+            a_win_pct = 60.0
+            b_win_pct = 40.0
+        elif home == team_b:
+            a_win_pct = 40.0
+            b_win_pct = 60.0
+    
     advantage = a_win_pct - b_win_pct
+    
     
     # Convert to points
     if advantage > 20:
@@ -53,21 +58,36 @@ def calculate(team_a, team_b, venue):
         points_a = 0
         points_b = MAX_POINTS
     
-    # Reduce confidence if low sample size
     if a_matches < MIN_MATCHES_VENUE and b_matches < MIN_MATCHES_VENUE:
-        # Both teams have low data — split evenly
-        points_a = MAX_POINTS / 2
-        points_b = MAX_POINTS / 2
+        # Both teams have low data — move toward 50-50 but keep home advantage
+        points_a = (points_a + MAX_POINTS/2) / 2
+        points_b = (points_b + MAX_POINTS/2) / 2
     
     return {
-        "team_a_points": round(points_a, 2),
-        "team_b_points": round(points_b, 2),
+        "team_a_points": round(float(points_a), 2),
+        "team_b_points": round(float(points_b), 2),
         "max_points": MAX_POINTS,
         "advantage": "team_a" if points_a > points_b else "team_b" if points_b > points_a else "neutral",
         "details": {
-            "team_a_win_pct": round(a_win_pct, 1),
-            "team_b_win_pct": round(b_win_pct, 1),
-            "team_a_venue_matches": a_matches,
-            "team_b_venue_matches": b_matches
+            "team_a_win_pct": round(float(a_win_pct), 1),
+            "team_b_win_pct": round(float(b_win_pct), 1),
+            "team_a_venue_matches": int(a_matches),
+            "team_b_venue_matches": int(b_matches)
         }
     }
+def get_home_team(venue):
+    """Map venue to home team"""
+    home_map = {
+        'M Chinnaswamy Stadium, Bengaluru': 'Royal Challengers Bengaluru',
+        'Wankhede Stadium, Mumbai': 'Mumbai Indians',
+        'MA Chidambaram Stadium, Chepauk, Chennai': 'Chennai Super Kings',
+        'Eden Gardens, Kolkata': 'Kolkata Knight Riders',
+        'Arun Jaitley Stadium, Delhi': 'Delhi Capitals',
+        'Rajiv Gandhi International Stadium, Hyderabad': 'Sunrisers Hyderabad',
+        'Narendra Modi Stadium, Ahmedabad': 'Gujarat Titans',
+        'Sawai Mansingh Stadium, Jaipur': 'Rajasthan Royals',
+        'BRSABV Ekana Cricket Stadium, Lucknow': 'Lucknow Super Giants',
+        'Punjab Cricket Association Stadium, Mohali': 'Punjab Kings',
+        'Maharaja Yadavindra Singh International Cricket Stadium, New Chandigarh': 'Punjab Kings',
+    }
+    return home_map.get(venue)

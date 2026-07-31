@@ -1,9 +1,11 @@
-from .layers import layer1_venue_compatibility, layer2_recent_form, layer3_win_contribution, layer4_player_matchups
+from .layers import (layer1_venue_compatibility, layer2_recent_form, 
+                      layer3_win_contribution, layer4_player_matchups,
+                      layer5_team_h2h,layer6_toss_conditions)
 from .utils.data_loader import get_match_players
 from .utils.constants import CONFIDENCE_HIGH, CONFIDENCE_MEDIUM
 
 def predict_match(team_a, team_b, venue, match_date=None, stage="League", 
-                  team_a_xi=None, team_b_xi=None, toss_winner=None):
+                  team_a_xi=None, team_b_xi=None, toss_winner=None,toss_decision=None):
     """
     Main prediction function.
     Runs all 10 layers and returns final prediction.
@@ -77,8 +79,20 @@ def predict_match(team_a, team_b, venue, match_date=None, stage="League",
             print(f"     • {matchup}")
         print()
     
-    # Layers 5-10 coming soon
+    print("[Layer 5] Team H2H Record...")
+    l5 = layer5_team_h2h.calculate(team_a, team_b, venue)
+    results["layer5"] = l5
+    total_a += l5["team_a_points"]
+    total_b += l5["team_b_points"]
+    print(f"  {team_a}: {l5['team_a_points']} | {team_b}: {l5['team_b_points']} (max {l5['max_points']})")
     
+    print("[Layer 6] Toss & Conditions...")
+    l6 = layer6_toss_conditions.calculate(team_a, team_b, venue, match_date, toss_winner, toss_decision)
+    results["layer6"] = l6
+    total_a += l6["team_a_points"]
+    total_b += l6["team_b_points"]
+    print(f"  {team_a}: {l6['team_a_points']} | {team_b}: {l6['team_b_points']} (max {l6['max_points']})")
+    #6-10
     # Calculate confidence
     gap = abs(total_a - total_b)
     if gap >= CONFIDENCE_HIGH:
@@ -97,7 +111,7 @@ def predict_match(team_a, team_b, venue, match_date=None, stage="League",
         winner = "Tie"
     
     # Convert to percentage
-    max_possible = 15 + 12 + 12 + 15  # Update as layers are added
+    max_possible = 15 + 12 + 12 + 15 + 10 + 8# Update as layers are added
     team_a_pct = round((total_a / max_possible) * 100, 1)
     team_b_pct = round((total_b / max_possible) * 100, 1)
     
@@ -154,5 +168,22 @@ def generate_key_factors(results, team_a, team_b):
             factors.append("--- Key Player Matchups ---")
             for matchup in l4["key_matchups"][:5]:
                 factors.append(matchup)
-    
+    if "layer5" in results:
+        l5 = results["layer5"]
+        details = l5["details"]
+        if details.get("matches_played", 0) > 0:
+            factors.append(
+                f"Recent H2H: {team_a} {details['team_a_wins']}-{details['team_b_wins']} {team_b} "
+                f"({details['matches_played']} meetings, last 3 seasons)"
+            )
+    if "layer6" in results:
+        l6 = results["layer6"]
+        details = l6["details"]
+        if details.get("venue_bias") and details["venue_bias"] != "neutral":
+            bias = "batting first" if details["venue_bias"] == "bat_first" else "chasing"
+            key = "bat_first_win_pct" if details["venue_bias"] == "bat_first" else "chase_win_pct"
+            pct = details.get(key, "?")
+            factors.append(f"Venue bias: {bias} wins {pct}% here")
+        if details.get("toss_known"):
+            factors.append(f"Toss factor included in prediction")
     return factors

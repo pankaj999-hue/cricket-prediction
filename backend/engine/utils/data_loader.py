@@ -11,6 +11,48 @@ RECENT_SEASONS = ['2024', '2025', '2026']
 def get_connection():
     return psycopg2.connect(DATABASE_URL)
 
+def normalize_venue(venue_name):
+    """Map all IPL venue name variations to a standard name"""
+    if not venue_name:
+        return venue_name
+    
+    v = venue_name.lower()
+    
+    if 'wankhede' in v: return 'Wankhede Stadium, Mumbai'
+    if 'brabourne' in v: return 'Brabourne Stadium, Mumbai'
+    if 'dy patil' in v: return 'DY Patil Stadium, Navi Mumbai'
+    if 'chinnaswamy' in v: return 'M Chinnaswamy Stadium, Bengaluru'
+    if 'chepauk' in v or 'chidambaram' in v: return 'MA Chidambaram Stadium, Chepauk, Chennai'
+    if 'eden' in v: return 'Eden Gardens, Kolkata'
+    if 'arun' in v or 'kotla' in v or 'feroz' in v: return 'Arun Jaitley Stadium, Delhi'
+    if 'rajiv gandhi' in v or 'uppal' in v: return 'Rajiv Gandhi International Stadium, Hyderabad'
+    if 'narendra modi' in v or 'motera' in v: return 'Narendra Modi Stadium, Ahmedabad'
+    if 'sawai' in v or 'mansingh' in v: return 'Sawai Mansingh Stadium, Jaipur'
+    if 'mohali' in v or 'punjab cricket' in v or 'pca' in v: return 'Punjab Cricket Association Stadium, Mohali'
+    if 'maharaja yadavindra' in v or 'new chandigarh' in v: return 'Maharaja Yadavindra Singh International Cricket Stadium, New Chandigarh'
+    if 'ekana' in v or 'atal bihari' in v: return 'BRSABV Ekana Cricket Stadium, Lucknow'
+    if 'dharamsala' in v or 'hpca' in v: return 'HPCA Stadium, Dharamsala'
+    if 'guwahati' in v or 'barsapara' in v: return 'Barsapara Cricket Stadium, Guwahati'
+    if 'indore' in v or 'holkar' in v: return 'Holkar Cricket Stadium, Indore'
+    if 'raipur' in v or 'shaheed' in v: return 'Shaheed Veer Narayan Singh International Stadium, Raipur'
+    if 'ranchi' in v or 'jsca' in v: return 'JSCA International Stadium Complex, Ranchi'
+    if 'visakhapatnam' in v or 'vizag' in v or 'dr ys' in v: return 'Dr YS Rajasekhara Reddy Cricket Stadium, Visakhapatnam'
+    if 'pune' in v or 'maharashtra cricket' in v or 'mca' in v: return 'Maharashtra Cricket Association Stadium, Pune'
+    if 'thiruvananthapuram' in v or 'trivandrum' in v or 'greenfield' in v: return 'Greenfield International Stadium, Thiruvananthapuram'
+    if 'cuttack' in v or 'barabati' in v: return 'Barabati Stadium, Cuttack'
+    if 'dehradun' in v: return 'Rajiv Gandhi International Cricket Stadium, Dehradun'
+    if 'kochi' in v or 'jawaharlal' in v: return 'Jawaharlal Nehru Stadium, Kochi'
+    if 'nagpur' in v or 'vidarbha' in v or 'vca' in v: return 'Vidarbha Cricket Association Stadium, Nagpur'
+    if 'green park' in v: return 'Green Park, Kanpur'
+    if 'nehru' in v: return 'Nehru Stadium, Kochi'
+    if 'saurashtra' in v: return 'Saurashtra Cricket Association Stadium, Rajkot'
+    if 'sahara' in v: return 'Subrata Roy Sahara Stadium, Pune'
+    if 'dubai' in v: return 'Dubai International Cricket Stadium, Dubai'
+    if 'abu dhabi' in v: return 'Sheikh Zayed Stadium, Abu Dhabi'
+    if 'sharjah' in v: return 'Sharjah Cricket Stadium, Sharjah'
+    
+    return venue_name
+
 # ============================================
 # PLAYING XI FUNCTIONS
 # ============================================
@@ -124,6 +166,7 @@ def get_team_players_all_time(team_name):
 
 def get_team_venue_record(team, venue):
     """Get team's record at venue — recent first, fallback to all-time"""
+    venue = normalize_venue(venue)
     conn = get_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     
@@ -150,8 +193,15 @@ def get_team_venue_record(team, venue):
     
     result = cursor.fetchone()
     
-    # Fallback to all-time if not enough recent data
-    if not result or result['matches_played'] < 3:
+    # If no recent data, return None instead of falling back to all-time
+    # Let the layer decide what to do
+    if not result or result['matches_played'] == 0:
+        cursor.close()
+        conn.close()
+        return None  # No recent data at all
+    
+    # Fallback to all-time only if recent has some but small sample
+    if result['matches_played'] < 3:
         cursor.execute("""
             SELECT 
                 venue,
@@ -170,12 +220,15 @@ def get_team_venue_record(team, venue):
             GROUP BY venue
         """, (team, team, team, venue, venue, team))
         
-        result = cursor.fetchone()
+        all_time = cursor.fetchone()
+        
+        # Only use all-time if it has more matches
+        if all_time and all_time['matches_played'] > result['matches_played']:
+            result = all_time
     
     cursor.close()
     conn.close()
     return result
-
 def get_team_h2h_record(team_a, team_b):
     """Get head-to-head record between two teams"""
     conn = get_connection()
@@ -193,7 +246,9 @@ def get_team_h2h_record(team_a, team_b):
     return result
 
 def get_venue_pitch_profile(venue):
+    
     """Get pitch characteristics for a venue"""
+    venue = normalize_venue(venue)
     conn = get_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     

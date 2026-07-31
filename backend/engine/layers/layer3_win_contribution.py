@@ -1,4 +1,9 @@
 from ..utils.data_loader import get_player_win_contribution
+import psycopg2
+import psycopg2.extras
+from app.config import DATABASE_URL
+
+RECENT_SEASONS = ['2024', '2025', '2026']
 
 def calculate(team_a, team_b, venue):
     """Legacy method — kept for compatibility"""
@@ -35,19 +40,50 @@ def calculate_with_players(team_a_players, team_b_players):
     }
 
 def calculate_team_win_contribution(players):
-    """Calculate team's win contribution from actual 12 players"""
+    """Calculate team's win contribution from actual 12 players — recent only"""
     if not players:
         return 0
+    
+    conn = psycopg2.connect(DATABASE_URL)
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     
     total_score = 0
     count = 0
     
     for player in players[:8]:
-        contrib = get_player_win_contribution(player.get('player_id'))
+        player_id = player.get('player_id')
+        if not player_id:
+            continue
         
-        if contrib and contrib.get('win_percentage'):
-            win_pct = contrib['win_percentage']
-            matches = contrib.get('matches_with_contribution', 0)
+        # Calculate win contribution from recent seasons only
+        cursor.execute("""
+            WITH player_innings AS (
+                SELECT 
+                    d.match_id,
+                    d.innings,
+                    d.batter_id,
+                    d.batting_team,
+                    SUM(d.runs_batter) as runs
+                FROM deliveries d
+                JOIN matches m ON d.match_id = m.match_id
+                WHERE d.batter_id = %s AND m.season = ANY(%s)
+                GROUP BY d.match_id, d.innings, d.batter_id, d.batting_team
+                HAVING SUM(d.runs_batter) >= 30
+            )
+            SELECT 
+                COUNT(DISTINCT pi.match_id) as matches_contributed,
+                SUM(CASE WHEN m2.winner = pi.batting_team THEN 1 ELSE 0 END) as wins,
+                CASE WHEN COUNT(DISTINCT pi.match_id) > 0 
+                     THEN SUM(CASE WHEN m2.winner = pi.batting_team THEN 1 ELSE 0 END) * 100.0 / COUNT(DISTINCT pi.match_id)
+                     ELSE 0 END as win_pct
+            FROM player_innings pi
+            JOIN matches m2 ON pi.match_id = m2.match_id
+        """, (player_id, RECENT_SEASONS))
+        
+        contrib = cursor.fetchone()
+        
+        if contrib and contrib['matches_contributed'] >= 3:
+            win_pct = contrib['win_pct']
             
             if win_pct > 70:
                 score = 10
@@ -60,11 +96,11 @@ def calculate_team_win_contribution(players):
             else:
                 score = 1
             
-            if matches > 20:
-                score *= 1.2
-            
             total_score += score
             count += 1
+    
+    cursor.close()
+    conn.close()
     
     if count > 0:
         return total_score / count

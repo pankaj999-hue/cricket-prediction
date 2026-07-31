@@ -13,8 +13,11 @@ import psycopg2.extras
 result = predict_match(
     team_a="Royal Challengers Bengaluru",
     team_b="Mumbai Indians",
-    venue="Wankhede Stadium, mumbai",
-    stage="League"
+    venue="M. Chinnaswamy Stadium",
+    stage="League",
+    toss_winner="Mumbai Indians",
+    toss_decision="field"
+    
 )
 
 print("\nFull Result:")
