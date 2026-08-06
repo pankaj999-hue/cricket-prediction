@@ -1,15 +1,41 @@
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 import psycopg2
 from config import DATABASE_URL
+from engine.utils.data_loader import normalize_venue
+
+def cleanup_stale_venues(conn, cursor):
+    """Normalize venue names in matches and drop aggregation rows stored under
+    non-canonical venue names so exact-match venue queries never miss data."""
+    cursor.execute("SELECT DISTINCT venue FROM matches")
+    for (venue,) in cursor.fetchall():
+        if not venue:
+            continue
+        canonical = normalize_venue(venue)
+        if canonical != venue:
+            cursor.execute("UPDATE matches SET venue = %s WHERE venue = %s", (canonical, venue))
+
+    for table, column in [("player_venue_stats", "venue"), ("team_venue_record", "venue"),
+                          ("venue_pitch_profile", "venue"), ("venues", "name")]:
+        cursor.execute(f"SELECT DISTINCT {column} FROM {table}")
+        for (venue,) in cursor.fetchall():
+            if not venue:
+                continue
+            canonical = normalize_venue(venue)
+            if canonical != venue:
+                cursor.execute(f"DELETE FROM {table} WHERE {column} = %s", (venue,))
+    conn.commit()
 
 def refresh_all():
     conn = psycopg2.connect(DATABASE_URL)
     cursor = conn.cursor()
     
     print("Refreshing aggregation tables...")
+
+    cleanup_stale_venues(conn, cursor)
     
     # 1. Player Career Stats
     print("[1/8] Player career stats...")

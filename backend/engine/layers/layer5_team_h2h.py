@@ -1,17 +1,18 @@
 import psycopg2
 import psycopg2.extras
 from app.config import DATABASE_URL
-
+from ..utils import data_loader
 RECENT_SEASONS = ['2024', '2025', '2026']
+
 
 def calculate(team_a, team_b, venue=None):
     """
     Layer 5: Team Head-to-Head Record (Recent)
-    Max points: 10
+    Max points: 6
     
     H2H record from last 3 seasons only.
     """
-    MAX_POINTS = 10
+    MAX_POINTS = 6
     
     conn = psycopg2.connect(DATABASE_URL)
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -25,7 +26,8 @@ def calculate(team_a, team_b, venue=None):
         FROM matches
         WHERE ((team_a = %s AND team_b = %s) OR (team_a = %s AND team_b = %s))
           AND season = ANY(%s)
-    """, (team_a, team_b, team_a, team_b, team_b, team_a, RECENT_SEASONS))
+          AND league = %s
+    """, (team_a, team_b, team_a, team_b, team_b, team_a, RECENT_SEASONS, data_loader.LEAGUE))
     
     h2h = cursor.fetchone()
     cursor.close()
@@ -74,10 +76,11 @@ def calculate(team_a, team_b, venue=None):
         points_a = MAX_POINTS * 0.1
         points_b = MAX_POINTS * 0.9
     
-    # Small sample penalty
-    if total < 3:
-        points_a = (points_a + MAX_POINTS/2) / 2
-        points_b = (points_b + MAX_POINTS/2) / 2
+    # Small sample penalty — dampen toward 50-50. A 1-0 or 2-0 recent
+    # H2H is noisy and was a big source of confident wrong calls.
+    damp = min(1.0, total / 6.0)
+    points_a = MAX_POINTS/2 + (points_a - MAX_POINTS/2) * damp
+    points_b = MAX_POINTS/2 + (points_b - MAX_POINTS/2) * damp
     
     return {
         "team_a_points": round(points_a, 2),

@@ -1,3 +1,4 @@
+
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -7,12 +8,13 @@ import psycopg2.extras
 from app.config import DATABASE_URL
 
 RECENT_SEASONS = ['2024', '2025', '2026']
+LEAGUE = 'IPL'  # Default, overridden by predictor
 
 def get_connection():
     return psycopg2.connect(DATABASE_URL)
 
 def normalize_venue(venue_name):
-    """Map all IPL venue name variations to a standard name"""
+    """Map all venue name variations to a standard name"""
     if not venue_name:
         return venue_name
     
@@ -25,13 +27,14 @@ def normalize_venue(venue_name):
     if 'chepauk' in v or 'chidambaram' in v: return 'MA Chidambaram Stadium, Chepauk, Chennai'
     if 'eden' in v: return 'Eden Gardens, Kolkata'
     if 'arun' in v or 'kotla' in v or 'feroz' in v: return 'Arun Jaitley Stadium, Delhi'
+    if 'dehradun' in v: return 'Rajiv Gandhi International Cricket Stadium, Dehradun'
     if 'rajiv gandhi' in v or 'uppal' in v: return 'Rajiv Gandhi International Stadium, Hyderabad'
     if 'narendra modi' in v or 'motera' in v: return 'Narendra Modi Stadium, Ahmedabad'
     if 'sawai' in v or 'mansingh' in v: return 'Sawai Mansingh Stadium, Jaipur'
+    if 'dharamsala' in v or 'hpca' in v: return 'HPCA Stadium, Dharamsala'
     if 'mohali' in v or 'punjab cricket' in v or 'pca' in v: return 'Punjab Cricket Association Stadium, Mohali'
     if 'maharaja yadavindra' in v or 'new chandigarh' in v: return 'Maharaja Yadavindra Singh International Cricket Stadium, New Chandigarh'
     if 'ekana' in v or 'atal bihari' in v: return 'BRSABV Ekana Cricket Stadium, Lucknow'
-    if 'dharamsala' in v or 'hpca' in v: return 'HPCA Stadium, Dharamsala'
     if 'guwahati' in v or 'barsapara' in v: return 'Barsapara Cricket Stadium, Guwahati'
     if 'indore' in v or 'holkar' in v: return 'Holkar Cricket Stadium, Indore'
     if 'raipur' in v or 'shaheed' in v: return 'Shaheed Veer Narayan Singh International Stadium, Raipur'
@@ -40,7 +43,6 @@ def normalize_venue(venue_name):
     if 'pune' in v or 'maharashtra cricket' in v or 'mca' in v: return 'Maharashtra Cricket Association Stadium, Pune'
     if 'thiruvananthapuram' in v or 'trivandrum' in v or 'greenfield' in v: return 'Greenfield International Stadium, Thiruvananthapuram'
     if 'cuttack' in v or 'barabati' in v: return 'Barabati Stadium, Cuttack'
-    if 'dehradun' in v: return 'Rajiv Gandhi International Cricket Stadium, Dehradun'
     if 'kochi' in v or 'jawaharlal' in v: return 'Jawaharlal Nehru Stadium, Kochi'
     if 'nagpur' in v or 'vidarbha' in v or 'vca' in v: return 'Vidarbha Cricket Association Stadium, Nagpur'
     if 'green park' in v: return 'Green Park, Kanpur'
@@ -51,25 +53,122 @@ def normalize_venue(venue_name):
     if 'abu dhabi' in v: return 'Sheikh Zayed Stadium, Abu Dhabi'
     if 'sharjah' in v: return 'Sharjah Cricket Stadium, Sharjah'
     
+    # CPL Venues
+    if 'kensington' in v or 'bridgetown' in v:
+        return 'Kensington Oval, Bridgetown'
+    if 'sabina' in v or 'kingston' in v:
+        return 'Sabina Park, Kingston'
+    if 'daren' in v or 'gros islet' in v or 'st lucia' in v:
+        return 'Daren Sammy Cricket Ground, Gros Islet'
+    if 'providence' in v or 'guyana' in v or 'georgetown' in v:
+        return 'Providence Stadium, Georgetown'
+    if 'warner' in v or 'basseterre' in v or 'st kitts' in v:
+        return 'Warner Park Sporting Complex, Basseterre'
+    if 'brian lara' in v or 'tarouba' in v:
+        return 'Brian Lara Cricket Academy, Tarouba'
+    if 'queen\'s park' in v or 'port of spain' in v:
+        return 'Queen\'s Park Oval, Port of Spain'
+    if 'arnos' in v or 'kingstown' in v or 'st vincent' in v:
+        return 'Arnos Vale Stadium, Kingstown'
+    if 'vivian richards' in v or 'north sound' in v or 'antigua' in v:
+        return 'Sir Vivian Richards Stadium, North Sound'
+    
     return venue_name
 
 # ============================================
 # PLAYING XI FUNCTIONS
 # ============================================
-
-def get_expected_xi(team_name):
-    """Get most recent playing XII for a team (including impact sub)"""
+def get_squad_players(team_name, season='2026'):
+    """Get players from pre-loaded squad table with fuzzy name matching"""
     conn = get_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     
-    # Get the most recent match for this team
+    cursor.execute("""
+        SELECT s.player_name, p.player_id, p.name
+        FROM squads s
+        LEFT JOIN players p ON LOWER(p.name) = LOWER(s.player_name)
+        WHERE s.team = %s AND s.season = %s AND s.league = %s
+    """, (team_name, season, LEAGUE))
+    
+    results = cursor.fetchall()
+    
+    for r in results:
+        if r['player_id'] is None:
+            parts = r['player_name'].split()
+            if len(parts) >= 2:
+                last_name = parts[-1]
+                first_name = parts[0].lower()
+                first_initial = first_name[0]
+
+                # Candidates who actually played FOR this team (role-aware)
+                cursor.execute("""
+                    SELECT DISTINCT p.player_id, p.name
+                    FROM players p
+                    JOIN deliveries d ON p.player_id = d.batter_id OR p.player_id = d.bowler_id
+                    JOIN matches m ON d.match_id = m.match_id
+                    WHERE p.name ILIKE %s
+                      AND m.league = %s
+                      AND ((p.player_id = d.batter_id AND d.batting_team = %s)
+                        OR (p.player_id = d.bowler_id AND d.bowling_team = %s))
+                    ORDER BY p.name
+                """, (f"%{last_name}%", LEAGUE, team_name, team_name))
+                candidates = cursor.fetchall()
+
+                # Fallback: search surname globally (players new to this team)
+                if not candidates:
+                    cursor.execute("""
+                        SELECT player_id, name FROM players
+                        WHERE name ILIKE %s
+                        ORDER BY name
+                    """, (f"%{last_name}%",))
+                    candidates = cursor.fetchall()
+
+                match = None
+                if candidates:
+                    # Player's first name must appear (or share an initial) in the
+                    # matched name, otherwise a same-surname player may be picked.
+                    preferred = [
+                        c for c in candidates
+                        if first_name in c['name'].lower() or first_initial in c['name'].lower()
+                    ]
+                    pool = preferred if preferred else []
+                    if len(pool) == 1:
+                        match = pool[0]
+                    elif len(pool) > 1:
+                        full_name = ' '.join(parts).lower()
+                        for c in pool:
+                            if full_name in c['name'].lower() or c['name'].lower() in full_name:
+                                match = c
+                                break
+                        # Still ambiguous — leave unresolved rather than guess.
+
+                if match:
+                    r['player_id'] = match['player_id']
+                    r['name'] = match['name']
+    
+    cursor.close()
+    conn.close()
+    return results
+def get_expected_xi(team_name):
+    """Get most recent playing XII for a team (including impact sub)"""
+    
+    squad = get_squad_players(team_name)
+    if squad and len(squad) >= 8:
+        return squad[:12]
+        
+    conn = get_connection()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    
+
+    
     cursor.execute("""
         SELECT match_id, date
         FROM matches
         WHERE (team_a = %s OR team_b = %s)
+          AND league = %s
         ORDER BY date DESC
         LIMIT 1
-    """, (team_name, team_name))
+    """, (team_name, team_name, LEAGUE))
     
     last_match = cursor.fetchone()
     
@@ -80,31 +179,31 @@ def get_expected_xi(team_name):
     
     match_id = last_match['match_id']
     
-    # Get all players who played in this match
     cursor.execute("""
-        SELECT DISTINCT ON (COALESCE(player_id, player_name)) 
-            player_name, player_id
+        SELECT player_name, MAX(player_id) as player_id
         FROM (
-            SELECT DISTINCT d.batter as player_name, d.batter_id as player_id
+            SELECT d.batter as player_name, d.batter_id as player_id
             FROM deliveries d
             WHERE d.match_id = %s AND d.batting_team = %s
             UNION
-            SELECT DISTINCT d.bowler as player_name, d.bowler_id as player_id
+            SELECT d.bowler as player_name, d.bowler_id as player_id
             FROM deliveries d
             WHERE d.match_id = %s AND d.bowling_team = %s
-            UNION  
-            SELECT DISTINCT d.non_striker as player_name, NULL as player_id
+            UNION
+            SELECT d.non_striker as player_name, NULL as player_id
             FROM deliveries d
             WHERE d.match_id = %s AND d.batting_team = %s
         ) all_players
         WHERE player_name IS NOT NULL
+        GROUP BY player_name
+        ORDER BY player_name
         LIMIT 12
     """, (match_id, team_name, match_id, team_name, match_id, team_name))
     
     players = cursor.fetchall()
     cursor.close()
     conn.close()
-        # Remove duplicates manually
+    
     seen = set()
     unique_players = []
     for p in players:
@@ -117,8 +216,6 @@ def get_expected_xi(team_name):
         return get_team_players_all_time(team_name)[:12]
     
     return unique_players[:12]
-    
-
 
 def get_match_players(team_name, user_xi=None):
     """Get players for prediction — user XI or auto-fetch"""
@@ -153,7 +250,8 @@ def get_team_players_all_time(team_name):
         JOIN matches m ON d.match_id = m.match_id
         WHERE (m.team_a = %s OR m.team_b = %s)
           AND (d.batting_team = %s OR d.bowling_team = %s)
-    """, (team_name, team_name, team_name, team_name))
+          AND m.league = %s
+    """, (team_name, team_name, team_name, team_name, LEAGUE))
     
     results = cursor.fetchall()
     cursor.close()
@@ -170,7 +268,6 @@ def get_team_venue_record(team, venue):
     conn = get_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     
-    # Try recent seasons first
     cursor.execute("""
         SELECT 
             venue,
@@ -182,25 +279,22 @@ def get_team_venue_record(team, venue):
                  ELSE 0 END as win_percentage
         FROM (
             SELECT team_a as team, venue, winner FROM matches 
-            WHERE season = ANY(%s) AND venue = %s
+            WHERE season = ANY(%s) AND venue = %s AND league = %s
             UNION ALL
             SELECT team_b as team, venue, winner FROM matches 
-            WHERE season = ANY(%s) AND venue = %s
+            WHERE season = ANY(%s) AND venue = %s AND league = %s
         ) tm
         WHERE team = %s
         GROUP BY venue
-    """, (team, team, team, RECENT_SEASONS, venue, RECENT_SEASONS, venue, team))
+    """, (team, team, team, RECENT_SEASONS, venue, LEAGUE, RECENT_SEASONS, venue, LEAGUE, team))
     
     result = cursor.fetchone()
     
-    # If no recent data, return None instead of falling back to all-time
-    # Let the layer decide what to do
     if not result or result['matches_played'] == 0:
         cursor.close()
         conn.close()
-        return None  # No recent data at all
+        return None
     
-    # Fallback to all-time only if recent has some but small sample
     if result['matches_played'] < 3:
         cursor.execute("""
             SELECT 
@@ -212,23 +306,22 @@ def get_team_venue_record(team, venue):
                      THEN SUM(CASE WHEN winner = %s THEN 1 ELSE 0 END) * 100.0 / COUNT(*)
                      ELSE 0 END as win_percentage
             FROM (
-                SELECT team_a as team, venue, winner FROM matches WHERE venue = %s
+                SELECT team_a as team, venue, winner FROM matches WHERE venue = %s AND league = %s
                 UNION ALL
-                SELECT team_b as team, venue, winner FROM matches WHERE venue = %s
+                SELECT team_b as team, venue, winner FROM matches WHERE venue = %s AND league = %s
             ) tm
             WHERE team = %s
             GROUP BY venue
-        """, (team, team, team, venue, venue, team))
+        """, (team, team, team, venue, LEAGUE, venue, LEAGUE, team))
         
         all_time = cursor.fetchone()
-        
-        # Only use all-time if it has more matches
         if all_time and all_time['matches_played'] > result['matches_played']:
             result = all_time
     
     cursor.close()
     conn.close()
     return result
+
 def get_team_h2h_record(team_a, team_b):
     """Get head-to-head record between two teams"""
     conn = get_connection()
@@ -246,7 +339,6 @@ def get_team_h2h_record(team_a, team_b):
     return result
 
 def get_venue_pitch_profile(venue):
-    
     """Get pitch characteristics for a venue"""
     venue = normalize_venue(venue)
     conn = get_connection()
@@ -285,6 +377,7 @@ def get_player_career_stats(player_id):
 
 def get_player_venue_stats(player_id, venue):
     """Get a player's stats at a specific venue"""
+    venue = normalize_venue(venue)
     conn = get_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     

@@ -10,10 +10,10 @@ def calculate(team_a, team_b, venue=None):
 
 def calculate_with_players(team_a_players, team_b_players, team_a, team_b):
     """
-    Layer 4: Player vs Player Matchups (15 points)
+    Layer 4: Player vs Player Matchups (16 points)
     Uses actual playing XII
     """
-    MAX_POINTS = 15
+    MAX_POINTS = 16
     
     if not team_a_players or not team_b_players:
         return {
@@ -25,11 +25,12 @@ def calculate_with_players(team_a_players, team_b_players, team_a, team_b):
             "details": {"message": "No player data available"}
         }
     
-    # Separate batters and bowlers based on who actually bats/bowls
-    team_a_batters = get_top_batters_from_12(team_a_players, team_a)
-    team_b_batters = get_top_batters_from_12(team_b_players, team_b)
-    team_a_bowlers = get_top_bowlers_from_12(team_a_players, team_a)
-    team_b_bowlers = get_top_bowlers_from_12(team_b_players, team_b)
+    # Separate batters and bowlers based on career runs/wickets (player-level,
+    # not tied to this team so new-franchise players still have their history)
+    team_a_batters = get_top_batters_from_12(team_a_players)
+    team_b_batters = get_top_batters_from_12(team_b_players)
+    team_a_bowlers = get_top_bowlers_from_12(team_a_players)
+    team_b_bowlers = get_top_bowlers_from_12(team_b_players)
     
     # Calculate matchup scores
     team_a_result = calculate_batting_matchup_score(team_a_batters, team_b_bowlers)
@@ -38,6 +39,11 @@ def calculate_with_players(team_a_players, team_b_players, team_a, team_b):
     team_a_score = team_a_result["score"]
     team_b_score = team_b_result["score"]
     key_matchups = team_a_result["key_matchups"] + team_b_result["key_matchups"]
+    
+    if team_a_score == 0 and team_b_score > 0:
+        team_a_score = team_b_score * 0.8  # Slightly worse, not zero
+    elif team_b_score == 0 and team_a_score > 0:
+        team_b_score = team_a_score * 0.8
     
     total = team_a_score + team_b_score
     
@@ -68,8 +74,10 @@ def calculate_with_players(team_a_players, team_b_players, team_a, team_b):
         }
     }
 
-def get_top_batters_from_12(players, team_name):
-    """From the 12 players, find the actual top batters by runs"""
+def get_top_batters_from_12(players):
+    """From the 12 players, find the actual top batters by career runs.
+    Player stats are used individually (not tied to this team) so that players
+    who recently joined a new franchise still have their batting history."""
     conn = psycopg2.connect(DATABASE_URL)
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     
@@ -85,12 +93,11 @@ def get_top_batters_from_12(players, team_name):
         FROM deliveries d
         JOIN matches m ON d.match_id = m.match_id
         WHERE batter_id = ANY(%s) 
-          AND batting_team = %s
           AND m.season = ANY(%s)
         GROUP BY batter_id
         ORDER BY total_runs DESC
         LIMIT 6
-    """, (player_ids, team_name, RECENT_SEASONS))
+    """, (player_ids, RECENT_SEASONS))
     
     batters = cursor.fetchall()
     cursor.close()
@@ -101,8 +108,9 @@ def get_top_batters_from_12(players, team_name):
     
     return batters
 
-def get_top_bowlers_from_12(players, team_name):
-    """From the 12 players, find the actual top bowlers by wickets"""
+def get_top_bowlers_from_12(players):
+    """From the 12 players, find the actual top bowlers by career wickets.
+    Player stats are used individually (not tied to this team)."""
     conn = psycopg2.connect(DATABASE_URL)
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     
@@ -119,12 +127,11 @@ def get_top_bowlers_from_12(players, team_name):
         FROM deliveries d
         JOIN matches m ON d.match_id = m.match_id
         WHERE bowler_id = ANY(%s) 
-          AND bowling_team = %s
           AND m.season = ANY(%s)
         GROUP BY bowler_id
         ORDER BY wickets DESC
         LIMIT 6
-    """, (player_ids, team_name, RECENT_SEASONS))
+    """, (player_ids, RECENT_SEASONS))
     
     bowlers = cursor.fetchall()
     cursor.close()

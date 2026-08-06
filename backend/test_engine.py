@@ -11,13 +11,12 @@ import psycopg2.extras
 
 # Test prediction
 result = predict_match(
-    team_a="Royal Challengers Bengaluru",
-    team_b="Mumbai Indians",
+    team_a="Chennai Super Kings",
+    team_b="Royal Challengers Bengaluru",
     venue="M. Chinnaswamy Stadium",
     stage="League",
-    toss_winner="Mumbai Indians",
-    toss_decision="field"
-    
+    toss_winner="Chennai Super Kings",
+    toss_decision="bat"
 )
 
 print("\nFull Result:")

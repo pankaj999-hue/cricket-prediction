@@ -11,10 +11,10 @@ def calculate(team_a, team_b, venue):
 
 def calculate_with_players(team_a_players, team_b_players):
     """
-    Layer 3: Win Contribution (12 points)
+    Layer 3: Win Contribution (13 points)
     Uses actual playing XII
     """
-    MAX_POINTS = 12
+    MAX_POINTS = 13
     
     team_a_win_score = calculate_team_win_contribution(team_a_players) if team_a_players else 0
     team_b_win_score = calculate_team_win_contribution(team_b_players) if team_b_players else 0
@@ -22,12 +22,18 @@ def calculate_with_players(team_a_players, team_b_players):
     total = team_a_win_score + team_b_win_score
     
     if total > 0:
+        # If one team has no data, use a baseline of 5
+        if team_a_win_score == 0:
+            team_a_win_score = 5
+        if team_b_win_score == 0:
+            team_b_win_score = 5
+        total = team_a_win_score + team_b_win_score
         points_a = (team_a_win_score / total) * MAX_POINTS
         points_b = (team_b_win_score / total) * MAX_POINTS
     else:
+        # Both teams have zero data — neutral
         points_a = MAX_POINTS / 2
         points_b = MAX_POINTS / 2
-    
     return {
         "team_a_points": round(points_a, 2),
         "team_b_points": round(points_b, 2),

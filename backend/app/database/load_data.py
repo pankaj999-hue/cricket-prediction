@@ -113,7 +113,8 @@ def parse_match(file_path):
         "winner": info.get("outcome", {}).get("winner"),
         "win_margin": list(info.get("outcome", {}).get("by", {}).values())[0] if info.get("outcome", {}).get("by") else None,
         "win_type": list(info.get("outcome", {}).get("by", {}).keys())[0] if info.get("outcome", {}).get("by") else None,
-        "player_of_match": info.get("player_of_match", [None])[0]
+        "player_of_match": info.get("player_of_match", [None])[0],
+        "league": "IPL"
     }
     
     return match, data
@@ -216,12 +217,12 @@ def load_all_data(data_folder, conn):
             # Insert match
             cursor.execute("""
                 INSERT INTO matches (match_id, season, date, format, event, stage, venue, city, 
-                    team_a, team_b, toss_winner, toss_decision, winner, win_margin, win_type, player_of_match)
+                    team_a, team_b, toss_winner, toss_decision, winner, win_margin, win_type, player_of_match, league)
                 VALUES (%(match_id)s, %(season)s, %(date)s, %(format)s, %(event)s, %(stage)s, %(venue)s, %(city)s,
-                    %(team_a)s, %(team_b)s, %(toss_winner)s, %(toss_decision)s, %(winner)s, %(win_margin)s, %(win_type)s, %(player_of_match)s)
+                    %(team_a)s, %(team_b)s, %(toss_winner)s, %(toss_decision)s, %(winner)s, %(win_margin)s, %(win_type)s, %(player_of_match)s, %(league)s)
                 ON CONFLICT (match_id) DO NOTHING
             """, match)
-            
+                        
             # Insert players
             for player in players:
                 cursor.execute("""

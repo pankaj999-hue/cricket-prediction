@@ -6,10 +6,10 @@ def calculate(team_a, team_b, venue):
 
 def calculate_with_players(team_a_players, team_b_players):
     """
-    Layer 2: Recent Form (12 points)
+    Layer 2: Recent Form (14 points)
     Uses actual playing XII
     """
-    MAX_POINTS = 12
+    MAX_POINTS = 14
     
     team_a_form = calculate_team_form(team_a_players) if team_a_players else 0
     team_b_form = calculate_team_form(team_b_players) if team_b_players else 0
