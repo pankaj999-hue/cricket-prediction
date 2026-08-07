@@ -7,8 +7,8 @@ import psycopg2
 from pathlib import Path
 from config import DATABASE_URL
 
-# Path to your JSON files
-DATA_FOLDER = r"D:\websiteds\malik-india\cricket-prediction\data\cpl_json"
+# Path to your JSON files (override via DATA_DIR env when needed)
+DATA_FOLDER = os.getenv("DATA_DIR_CPL", os.getenv("DATA_DIR", r"D:\websiteds\malik-india\cricket-prediction\data\cpl_json"))
 
 def clean_player_name(name):
     """Ensure consistent player names"""
