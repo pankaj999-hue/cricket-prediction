@@ -74,6 +74,15 @@ nav{
   letter-spacing:0.04em;
 }
 .nav-status.offline{color:var(--pink-2);}
+.nav-right{display:flex;align-items:center;gap:18px;}
+.nav-auth{
+  font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:0.04em;
+  color:var(--green);text-decoration:none;border:1px solid var(--green);
+  padding:8px 14px;border-radius:8px;cursor:pointer;
+}
+.nav-auth:hover{background:var(--green);color:#0A0A0A;}
+.nav-auth.out{color:var(--pink-2);border-color:var(--pink-2);}
+.nav-auth.out:hover{background:var(--pink-2);color:#fff;}
 .pulse{
   width:7px;height:7px;border-radius:50%;background:var(--pink-2);
   animation:pulse 2s infinite;

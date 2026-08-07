@@ -1,0 +1,77 @@
+.auth-hero{
+  min-height:calc(100vh - 90px);
+  display:flex;align-items:center;justify-content:center;
+  padding:60px 5vw;
+}
+.auth-card{
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  padding:40px;
+  width:100%;max-width:400px;
+  box-shadow:0 30px 80px rgba(0,0,0,0.55);
+}
+.auth-eyebrow{
+  font-family:'JetBrains Mono',monospace;
+  font-size:12px;color:var(--green);
+  letter-spacing:0.08em;margin-bottom:12px;
+}
+.auth-title{
+  font-family:'Unbounded',sans-serif;
+  font-size:26px;font-weight:700;color:var(--text);
+  margin-bottom:6px;
+}
+.auth-sub{
+  color:var(--text-dim);font-size:14px;margin-bottom:24px;
+}
+.auth-tabs{
+  display:flex;gap:8px;margin-bottom:24px;
+  padding-bottom:16px;border-bottom:1px solid var(--line);
+}
+.auth-tab{
+  flex:1;padding:10px;cursor:pointer;
+  background:var(--surface-2);color:var(--text-dim);
+  border:1px solid var(--line);border-radius:8px;
+  font-family:'JetBrains Mono',monospace;font-size:12px;
+  letter-spacing:0.03em;
+}
+.auth-tab.active{
+  background:var(--green);color:#0A0A0A;font-weight:700;border-color:transparent;
+}
+.auth-form{display:flex;flex-direction:column;gap:14px;}
+.auth-field{
+  display:flex;flex-direction:column;gap:6px;
+  font-family:'JetBrains Mono',monospace;font-size:11px;
+  color:var(--text-dim);letter-spacing:0.05em;
+}
+.auth-field .auth-req{color:var(--pink-2);text-transform:lowercase;}
+.auth-field input{
+  padding:12px 14px;
+  background:var(--surface-2);color:var(--text);
+  border:1px solid var(--line);border-radius:8px;
+  font-family:'Space Grotesk',sans-serif;font-size:15px;
+}
+.auth-field input:focus{outline:none;border-color:var(--green);}
+.auth-msg{
+  min-height:20px;font-size:13px;
+  font-family:'JetBrains Mono',monospace;
+  color:var(--pink-2);
+}
+.auth-msg.ok{color:var(--green);}
+.auth-btn{
+  padding:14px;cursor:pointer;border:none;border-radius:8px;
+  background:var(--pink);color:#fff;
+  font-family:'Unbounded',sans-serif;font-weight:700;font-size:13px;
+  letter-spacing:0.04em;
+  transition:transform 0.15s ease, box-shadow 0.15s ease;
+}
+.auth-btn:hover{transform:translateY(-2px);box-shadow:0 12px 30px rgba(237,11,101,0.35);}
+.auth-btn:disabled{opacity:0.5;cursor:not-allowed;transform:none;}
+.auth-hint{
+  margin-top:20px;padding-top:16px;border-top:1px solid var(--line);
+  font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-dim);
+  line-height:1.7;text-align:center;
+}
+@media(max-width:480px){
+  .auth-card{padding:28px;}
+}

@@ -6,3 +6,6 @@ fastapi
 uvicorn
 pandas
 numpy
+bcrypt
+PyJWT
+cryptography

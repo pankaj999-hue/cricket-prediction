@@ -33,8 +33,52 @@ function hideVideoOnError() {
   v.addEventListener('stalled', () => { if (v.readyState === 0) v.style.display = 'none'; });
 }
 
+function renderAuthNav() {
+  const el = $('navAuth');
+  if (!el) return;
+  let user = null;
+  try { user = JSON.parse(localStorage.getItem('matchcall_user') || 'null'); } catch {}
+  if (user && user.email) {
+    el.textContent = 'Sign out · ' + user.email;
+    el.classList.add('out');
+    el.href = '#';
+    el.onclick = null;
+    el.addEventListener('click', doLogout);
+  } else {
+    el.textContent = 'Sign in';
+    el.classList.remove('out');
+    el.href = 'login.html';
+    el.onclick = null;
+    el.addEventListener('click', () => { window.location.href = 'login.html'; });
+  }
+}
+
+async function doLogout(e) {
+  if (e) e.preventDefault();
+  try {
+    const token = (window.matchcallAuth && window.matchcallAuth.getToken()) || null;
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    await fetch('/api/auth/logout', {
+      method: 'POST', headers, credentials: 'same-origin', body: '{}',
+    });
+  } catch {}
+  if (window.matchcallAuth) window.matchcallAuth.clearSession();
+  window.location.href = '/login.html';
+}
+
 async function fetchJSON(url, options) {
-  const res = await fetch(url, options);
+  const authed = window.matchcallAuth;
+  const opts = authed ? authed.authedFetch(url, options) : (function () {
+    const o = options || {};
+    o.headers = Object.assign({}, o.headers || {});
+    return fetch(url, o);
+  })();
+  const res = await opts;
+  if (res.status === 401) {
+    if (authed) { authed.clearSession(); window.location.href = '/login.html'; }
+    throw new Error('Session expired. Please sign in again.');
+  }
   if (!res.ok) {
     const detail = (await res.json().catch(() => ({}))).detail || res.statusText;
     throw new Error(detail);
@@ -384,7 +428,13 @@ function bindCta() {
 
 // ---------- boot ----------
 (async function boot() {
+  // Auth guard: allow the anonymous API endpoints (teams/venues/strength) to
+  // render, but only run the protected predict flow when signed in.
   hideVideoOnError();
+  if (window.matchcallAuth && window.matchcallAuth.restoreSession) {
+    try { await window.matchcallAuth.restoreSession(); } catch {}
+  }
+  renderAuthNav();
   bindPitchPills();
   bindCta();
   bindLeagueSwitch();
