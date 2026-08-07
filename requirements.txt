@@ -1,0 +1,12 @@
+# Root requirements file — lets Railpack detect this as a Python app on Railway,
+# and matches backend/requirement.txt.
+psycopg2-binary
+python-dotenv
+sqlalchemy
+fastapi
+uvicorn
+pandas
+numpy
+bcrypt
+PyJWT
+cryptography
