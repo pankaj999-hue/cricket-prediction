@@ -44,13 +44,16 @@ VENUE_MAP = {
 }
 
 # Runtime status for the /api/toss-watcher/status probe.
+from app.config import ENVIRONMENT as _ENV
+
 _STATUS = {
     "thread_alive": False,
-    "env": "",
+    "env": _ENV,
     "interval": TOSS_POLL_INTERVAL,
     "last_sweep": None,
     "last_sweep_result": None,
     "last_error": None,
+    "email_configured": False,
     "kick_count": 0,
 }
 
@@ -207,8 +210,11 @@ def sweep(dry_run=False) -> int:
 def run_forever(interval: int | None = None):
     """Polling loop intended for a daemon thread. Never returns."""
     interval = interval or TOSS_POLL_INTERVAL
+    from app.config import EMAIL_DISABLED, RESEND_API_KEY
+
     logger.info("toss watcher started (interval=%ss)", interval)
     _STATUS["thread_alive"] = True
+    _STATUS["email_configured"] = bool(RESEND_API_KEY) and not EMAIL_DISABLED
     while True:
         try:
             created = sweep()

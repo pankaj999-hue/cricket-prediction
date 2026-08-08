@@ -28,17 +28,23 @@ FRONTEND_BUILD_DIR = os.path.join(FRONTEND_DIR, "dist")
 
 
 def _start_toss_watcher(app: FastAPI) -> None:
-    """Launch the background CPL toss poller as a daemon thread."""
-    from app.config import ENVIRONMENT
-    from app.services.toss_watcher import run_forever
+    """Launch the background CPL toss poller as a daemon thread.
 
-    if ENVIRONMENT != "production":
-        print("toss watcher: skipped (non-production env)")
-        return
+    Started unconditionally (not just in production): email sending self-guards
+    on EMAIL_DISABLED / RESEND_API_KEY, and the poller is cheap when idle.
+    Gating on ENVIRONMENT=production proved fragile (env var unset on Render),
+    and a dead poller silently means no alerts.
+    """
+    from app.services.toss_watcher import run_forever
+    from app.services.notify import EMAIL_DISABLED
+    from app.config import RESEND_API_KEY
 
     thread = threading.Thread(target=run_forever, name="toss-watcher", daemon=True)
     thread.start()
-    print("toss watcher: started (daemon thread)")
+    print(
+        f"toss watcher: started (thread={thread.is_alive()}, "
+        f"email={'disabled' if EMAIL_DISABLED else ('ready' if RESEND_API_KEY else 'no-key')})"
+    )
 
 
 def create_app() -> FastAPI:
