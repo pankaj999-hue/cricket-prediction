@@ -3,7 +3,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://cricket-prediction.onrender.com/api/:path*"
+      "destination": "https://antaryami9.onrender.com/api/:path*"
     },
     {
       "source": "/(.*)",
