@@ -8,6 +8,7 @@ too: EMAIL_DISABLED / missing RESEND_API_KEY turn email sending into a no-op.
 """
 import datetime
 import logging
+import threading
 import time
 
 from app.config import TOSS_POLL_INTERVAL
@@ -40,6 +41,17 @@ VENUE_MAP = {
     "Warner Park": "Warner Park Sporting Complex, Basseterre",
     "Providence Stadium": "Providence Stadium, Georgetown",
     "Kensington Oval": "Kensington Oval, Bridgetown",
+}
+
+# Runtime status for the /api/toss-watcher/status probe.
+_STATUS = {
+    "thread_alive": False,
+    "env": "",
+    "interval": TOSS_POLL_INTERVAL,
+    "last_sweep": None,
+    "last_sweep_result": None,
+    "last_error": None,
+    "kick_count": 0,
 }
 
 
@@ -187,6 +199,8 @@ def sweep(dry_run=False) -> int:
                 created += 1
         except Exception as e:
             logger.warning("sweep error on %s: %s", mid, e)
+    _STATUS["last_sweep"] = datetime.datetime.utcnow().isoformat()
+    _STATUS["last_sweep_result"] = created
     return created
 
 
@@ -194,11 +208,19 @@ def run_forever(interval: int | None = None):
     """Polling loop intended for a daemon thread. Never returns."""
     interval = interval or TOSS_POLL_INTERVAL
     logger.info("toss watcher started (interval=%ss)", interval)
+    _STATUS["thread_alive"] = True
     while True:
         try:
             created = sweep()
+            _STATUS["last_error"] = None
             if created:
                 logger.info("sweep created %d alert(s)", created)
         except Exception as e:
-            logger.warning("sweep failed: %s", e)
+            _STATUS["last_error"] = str(e)
+            logger.error("sweep failed: %s", e)
+        _STATUS["thread_alive"] = threading.current_thread().is_alive()
         time.sleep(interval)
+
+
+def status() -> dict:
+    return dict(_STATUS)

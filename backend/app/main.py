@@ -72,6 +72,14 @@ def create_app() -> FastAPI:
     app.include_router(predict.router)
     app.include_router(subscribe.router)
 
+    @app.get("/api/toss-watcher/status")
+    def toss_watcher_status():
+        """Diagnostic probe: is the poller thread alive and what did the last
+        sweep report? Lets us confirm the background emailer is actually
+        running on Render (needs ENVIRONMENT=production)."""
+        from app.services.toss_watcher import status as tw_status
+        return tw_status()
+
     _mount_frontend(app)
 
     return app
