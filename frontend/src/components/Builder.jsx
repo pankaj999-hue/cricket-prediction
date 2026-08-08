@@ -17,11 +17,11 @@ export default function Builder({
       <div className="section-eyebrow">// PREDICTOR</div>
       <h2 className="section-title">Call it yourself</h2>
       <div className="league-switch">
-        <button type="button" className={'league-tab' + (league === 'IPL' ? ' active' : '')} data-league="IPL" data-season="2026" onClick={() => onLeague('IPL')}>
-          IPL 2026
-        </button>
         <button type="button" className={'league-tab' + (league === 'CPL' ? ' active' : '')} data-league="CPL" data-season="2026" onClick={() => onLeague('CPL')}>
           CPL 2026
+        </button>
+        <button type="button" className={'league-tab' + (league === 'IPL' ? ' active' : '')} data-league="IPL" data-season="2026" onClick={() => onLeague('IPL')}>
+          IPL 2026
         </button>
       </div>
 

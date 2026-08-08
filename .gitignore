@@ -23,6 +23,10 @@ build/
 *.db
 *.sqlite3
 
+# Local runtime logs
+uvicorn.out.log
+uvicorn.err.log
+
 # OS
 .DS_Store
 Thumbs.db

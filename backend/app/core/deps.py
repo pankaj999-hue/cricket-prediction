@@ -5,6 +5,7 @@ from urllib.parse import urlparse
 
 from fastapi import Depends, HTTPException, Request
 
+from app.config import ALLOWED_ORIGINS
 from app.core.db import get_db_connection
 from app.core.security import decode_access_token
 
@@ -35,14 +36,35 @@ async def current_user(request: Request) -> dict:
 
 async def check_same_origin(request: Request) -> None:
     """CSRF guard for cookie-authenticated endpoints: block requests whose
-    Origin/Referer does not match our host. Non-browser clients (no Origin)
-    are allowed."""
+    Origin/Referer does not match our host.
+
+    Non-browser clients (no Origin) are allowed. When the app is served behind
+    a reverse proxy (e.g. the Vercel rewrite that proxies Vercel's origin to
+    this backend), the request Host differs from the browser's Origin — so an
+    origin that matches any ALLOWED_ORIGINS entry is also accepted.
+    """
     origin = request.headers.get("origin") or request.headers.get("referer")
     if not origin:
         return
     host = request.headers.get("host", "")
     try:
-        if urlparse(origin).netloc != host:
-            raise HTTPException(status_code=403, detail="Cross-origin request rejected.")
+        origin_netloc = urlparse(origin).netloc
     except ValueError:
         raise HTTPException(status_code=403, detail="Invalid Origin header.")
+
+    if origin_netloc == host:
+        return
+
+    allowed = set()
+    for o in ALLOWED_ORIGINS:
+        try:
+            allowed.add(urlparse(o).netloc)
+        except ValueError:
+            continue
+    # Drop the port for comparison so `https://app.vercel.app` matches whether
+    # or not a default port is present on each side.
+    origin_host = origin_netloc.rsplit(":", 1)[0]
+    if origin_host in allowed:
+        return
+
+    raise HTTPException(status_code=403, detail="Cross-origin request rejected.")

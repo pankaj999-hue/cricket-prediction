@@ -21,7 +21,7 @@ export default function Home() {
   const navigate = useNavigate();
 
   const [engine, setEngine] = useState('connecting');
-  const [league, setLeague] = useState('IPL');
+  const [league, setLeague] = useState('CPL');
   const [season, setSeason] = useState('2026');
   const [teams, setTeams] = useState([]);
   const [venues, setVenues] = useState([]);
@@ -67,7 +67,7 @@ export default function Home() {
   useEffect(() => {
     (async () => {
       try {
-        await loadData('IPL', '2026');
+        await loadData('CPL', '2026');
         setEngine('online');
       } catch (e) {
         setEngine('offline');
