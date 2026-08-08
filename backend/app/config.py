@@ -46,3 +46,11 @@ ALLOWED_ORIGINS = [
     ).split(",")
     if o.strip()
 ]
+
+# Toss-alert emails (Resend)
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+EMAIL_FROM = os.getenv("EMAIL_FROM", "MATCHCALL <alerts@yourdomain.com>")
+# Seconds between poller sweeps of the CPL schedule. Keep gentle on free tiers.
+TOSS_POLL_INTERVAL = int(os.getenv("TOSS_POLL_INTERVAL", "180"))
+# Skip actually sending emails when running locally without a key.
+EMAIL_DISABLED = os.getenv("EMAIL_DISABLED", "false").lower() in ("1", "true", "yes")

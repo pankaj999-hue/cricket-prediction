@@ -1,17 +1,28 @@
 import { useState } from 'react';
+import { useApi } from '../api';
 
 export default function CtaSection() {
+  const call = useApi();
   const [email, setEmail] = useState('');
   const [toast, setToast] = useState({ text: '', color: '' });
 
-  function handleSubscribe() {
+  async function handleSubscribe() {
     const value = email.trim();
     if (!value || !value.includes('@') || !value.includes('.')) {
       setToast({ text: '// enter a valid email address', color: 'var(--pink-2)' });
       return;
     }
-    setToast({ text: '// subscribed — you\'ll get the next call', color: 'var(--green)' });
-    setEmail('');
+    try {
+      await call('/api/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: value, league: 'CPL' }),
+      });
+      setToast({ text: '// subscribed — toss alerts arrive by email', color: 'var(--green)' });
+      setEmail('');
+    } catch (e) {
+      setToast({ text: `// ${e.message}`, color: 'var(--pink-2)' });
+    }
   }
 
   return (

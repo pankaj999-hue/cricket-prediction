@@ -4,6 +4,8 @@ route routers. Kept deliberately thin — business logic lives in
 services/, routers/, schemas.py, deps.py and platform modules below."""
 import os
 import sys
+import threading
+from contextlib import asynccontextmanager
 
 # Ensure `backend/` is on the path so `app.*` and `engine` import cleanly,
 # regardless of where uvicorn is launched from.
@@ -17,7 +19,7 @@ from fastapi.responses import FileResponse, JSONResponse
 
 from app.config import ALLOWED_ORIGINS, ENABLE_HSTS
 from app.core.security_headers import SecurityHeadersMiddleware
-from app.routers import auth, data, predict
+from app.routers import auth, data, predict, subscribe
 
 # React frontend: the built Vite app lives in repo-root/frontend/dist.
 # Falls back to serving the raw frontend dir when no build exists yet.
@@ -25,8 +27,29 @@ FRONTEND_DIR = os.path.join(os.path.dirname(BACKEND_DIR), "frontend")
 FRONTEND_BUILD_DIR = os.path.join(FRONTEND_DIR, "dist")
 
 
+def _start_toss_watcher(app: FastAPI) -> None:
+    """Launch the background CPL toss poller as a daemon thread."""
+    from app.config import ENVIRONMENT
+    from app.services.toss_watcher import run_forever
+
+    if ENVIRONMENT != "production":
+        print("toss watcher: skipped (non-production env)")
+        return
+
+    thread = threading.Thread(target=run_forever, name="toss-watcher", daemon=True)
+    thread.start()
+    print("toss watcher: started (daemon thread)")
+
+
 def create_app() -> FastAPI:
     app = FastAPI(title="MATCHCALL Prediction Engine API")
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI):
+        _start_toss_watcher(_app)
+        yield
+
+    app.router.lifespan_context = lifespan
 
     app.add_middleware(
         CORSMiddleware,
@@ -47,6 +70,7 @@ def create_app() -> FastAPI:
     app.include_router(auth.router)
     app.include_router(data.router)
     app.include_router(predict.router)
+    app.include_router(subscribe.router)
 
     _mount_frontend(app)
 

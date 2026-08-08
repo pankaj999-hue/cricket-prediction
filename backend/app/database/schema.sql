@@ -249,8 +249,33 @@ CREATE TABLE IF NOT EXISTS prediction_logs (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
--- ============================================
--- INDEXES FOR PERFORMANCE
+CREATE TABLE IF NOT EXISTS subscribers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    league VARCHAR(10) DEFAULT 'CPL',
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS toss_alerts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    cricbuzz_match_id VARCHAR(20) UNIQUE NOT NULL,
+    match_name VARCHAR(255),
+    match_date DATE,
+    team_a VARCHAR(100),
+    team_b VARCHAR(100),
+    venue VARCHAR(200),
+    toss_winner VARCHAR(100),
+    toss_decision VARCHAR(20),
+    predicted_winner VARCHAR(100),
+    team_a_score NUMERIC(5,2),
+    team_b_score NUMERIC(5,2),
+    confidence VARCHAR(20),
+    key_factors JSONB,
+    sent_count INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
 -- ============================================
 
 CREATE INDEX idx_deliveries_match ON deliveries(match_id);
@@ -260,4 +285,6 @@ CREATE INDEX idx_matches_venue ON matches(venue);
 CREATE INDEX idx_matches_teams ON matches(team_a, team_b);
 CREATE INDEX idx_matches_league ON matches(league);
 CREATE INDEX idx_player_venue ON player_venue_stats(player_id, venue);
-CREATE INDEX idx_team_venue ON team_venue_record(team, venue);
+CREATE INDEX IF NOT EXISTS idx_team_venue ON team_venue_record(team, venue);
+CREATE INDEX IF NOT EXISTS idx_subscribers_active ON subscribers(league, is_active);
+CREATE INDEX IF NOT EXISTS idx_toss_alerts_match ON toss_alerts(cricbuzz_match_id);
