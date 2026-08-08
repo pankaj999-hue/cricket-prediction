@@ -38,7 +38,13 @@ COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "lax")
 ENABLE_HSTS = os.getenv("ENABLE_HSTS", "true" if _is_production() else "false").lower() in ("1", "true", "yes")
 
 # Allowed CORS origins (dev Vite + the served app itself)
-ALLOWED_ORIGINS = [
+# The Vercel frontend proxies /api/* to this backend, and the browser's Origin
+# is the Vercel domain — so it is ALWAYS appended, even if ALLOWED_ORIGINS is
+# set (or unset) in the dashboard, or the cookie-auth endpoints will 403.
+PRODUCTION_FRONTEND_ORIGINS = [
+    "https://antaryami-nine.vercel.app",
+]
+_allowed_env = [
     o.strip()
     for o in os.getenv(
         "ALLOWED_ORIGINS",
@@ -46,6 +52,7 @@ ALLOWED_ORIGINS = [
     ).split(",")
     if o.strip()
 ]
+ALLOWED_ORIGINS = list(dict.fromkeys(_allowed_env + PRODUCTION_FRONTEND_ORIGINS))
 
 # Toss-alert emails (Resend)
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
