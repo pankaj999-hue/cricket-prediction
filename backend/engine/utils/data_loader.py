@@ -1,17 +1,58 @@
 
 import sys
 import os
+import threading
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 import psycopg2
 import psycopg2.extras
+from psycopg2.pool import ThreadedConnectionPool
 from app.config import DATABASE_URL
 
 RECENT_SEASONS = ['2024', '2025', '2026']
 LEAGUE = 'IPL'  # Default, overridden by predictor
 
+_POOL = None
+_POOL_LOCK = threading.Lock()
+
+
+def _get_pool():
+    """Lazily build a shared PostgreSQL connection pool."""
+    global _POOL
+    if _POOL is None:
+        with _POOL_LOCK:
+            if _POOL is None:
+                _POOL = ThreadedConnectionPool(1, 20, DATABASE_URL)
+    return _POOL
+
+
+class _PooledConnection:
+    """Wrapper around a pooled psycopg2 connection. Exposes the same API but
+    `close()` returns the connection to the pool instead of destroying it, so
+    every existing caller (routers, services, layers) gets pooling for free."""
+
+    __slots__ = ("_conn",)
+
+    def __init__(self, conn):
+        self._conn = conn
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+
+    def close(self):
+        conn, self._conn = self._conn, None
+        if conn is None:
+            return
+        try:
+            conn.rollback()
+        except Exception:
+            _get_pool().putconn(conn, close=True)
+            return
+        _get_pool().putconn(conn)
+
+
 def get_connection():
-    return psycopg2.connect(DATABASE_URL)
+    return _PooledConnection(_get_pool().getconn())
 
 def normalize_venue(venue_name):
     """Map all venue name variations to a standard name"""

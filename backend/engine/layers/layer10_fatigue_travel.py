@@ -1,6 +1,5 @@
-import psycopg2
 import psycopg2.extras
-from app.config import DATABASE_URL
+from ..utils.data_loader import get_connection
 from datetime import datetime, timedelta
 
 def calculate(team_a, team_b, match_date=None):
@@ -21,7 +20,7 @@ def calculate(team_a, team_b, match_date=None):
             "details": {"message": "No match date provided"}
         }
     
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = get_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     
     # Check matches in last 5 days for each team

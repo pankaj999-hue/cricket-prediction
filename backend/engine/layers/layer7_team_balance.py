@@ -1,7 +1,6 @@
-import psycopg2
 import psycopg2.extras
-from app.config import DATABASE_URL
 from ..utils import data_loader
+from ..utils.data_loader import get_connection
 
 RECENT_SEASONS = ['2024', '2025', '2026']
 
@@ -46,7 +45,7 @@ def analyze_balance(players, team_name):
     # Only analyze first 11 players (starting XI, exclude 12th man/impact sub)
     active_players = players[:11] if len(players) >= 11 else players
     
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = get_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     
     player_ids = [p.get('player_id') for p in active_players if p.get('player_id')]

@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS matches (
     win_margin INTEGER,
     win_type VARCHAR(20),         -- 'runs' or 'wickets'
     player_of_match VARCHAR(100),
+    league VARCHAR(10) DEFAULT 'IPL',  -- 'IPL' or 'CPL'
     created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -77,6 +78,17 @@ CREATE TABLE IF NOT EXISTS impact_subs (
     player_in VARCHAR(100),
     player_out VARCHAR(100),
     over_when_substituted NUMERIC(4,1)
+);
+
+-- Team squads per season/league (drives playing-XI auto-fetch)
+CREATE TABLE IF NOT EXISTS squads (
+    id SERIAL PRIMARY KEY,
+    team VARCHAR(100) NOT NULL,
+    player_name VARCHAR(100) NOT NULL,
+    season VARCHAR(10) NOT NULL,
+    league VARCHAR(10) DEFAULT 'IPL',
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(team, player_name, season, league)
 );
 
 -- ============================================
@@ -246,5 +258,6 @@ CREATE INDEX idx_deliveries_batter ON deliveries(batter_id);
 CREATE INDEX idx_deliveries_bowler ON deliveries(bowler_id);
 CREATE INDEX idx_matches_venue ON matches(venue);
 CREATE INDEX idx_matches_teams ON matches(team_a, team_b);
+CREATE INDEX idx_matches_league ON matches(league);
 CREATE INDEX idx_player_venue ON player_venue_stats(player_id, venue);
 CREATE INDEX idx_team_venue ON team_venue_record(team, venue);

@@ -1,6 +1,5 @@
-import psycopg2
 import psycopg2.extras
-from app.config import DATABASE_URL
+from ..utils.data_loader import get_connection
 
 RECENT_SEASONS = ['2024', '2025', '2026']
 
@@ -78,7 +77,7 @@ def get_top_batters_from_12(players):
     """From the 12 players, find the actual top batters by career runs.
     Player stats are used individually (not tied to this team) so that players
     who recently joined a new franchise still have their batting history."""
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = get_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     
     player_ids = [p.get('player_id') for p in players if p.get('player_id')]
@@ -111,7 +110,7 @@ def get_top_batters_from_12(players):
 def get_top_bowlers_from_12(players):
     """From the 12 players, find the actual top bowlers by career wickets.
     Player stats are used individually (not tied to this team)."""
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = get_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     
     player_ids = [p.get('player_id') for p in players if p.get('player_id')]
@@ -144,7 +143,7 @@ def get_top_bowlers_from_12(players):
 
 def calculate_batting_matchup_score(batters, opposition_bowlers):
     """Calculate matchup score and return key matchups"""
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = get_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     
     total_score = 0

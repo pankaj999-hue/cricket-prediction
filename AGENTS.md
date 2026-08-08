@@ -1,20 +1,25 @@
 # AGENTS.md
 
-T20 cricket match-prediction app. Core is a 10-layer prediction engine (`backend/engine/`) that reads a Postgres DB populated from Cricsheet JSON (v1.2.0) match archives in `data/ipl_json/` and `data/cpl_json/`. A FastAPI web server (`backend/app/main.py`) exposes the engine over HTTP and serves the frontend (`frontend/`), which was segregated from `frontend/one.html` into `index.html` + `css/style.css` + `js/app.js`.
+T20 cricket match-prediction app. Core is a 10-layer prediction engine (`backend/engine/`) that reads a Postgres DB populated from Cricsheet JSON (v1.2.0) match archives in `data/ipl_json/` and `data/cpl_json/`. A FastAPI web server (`backend/app/main.py`) exposes the engine over HTTP and serves the frontend (`frontend/`). The frontend is a **React app (Vite)** — a port of the old vanilla `index.html` + `css/style.css` + `js/app.js`. Components live in `frontend/src/components/`, pages in `frontend/src/pages/`, styles in `frontend/src/styles/` (imported straight through, class names unchanged).
 
 ## Run the web app
 
-```powershell
-.venv\Scripts\Activate.ps1
-python -m uvicorn app.main:app --app-dir backend --port 8000
-```
+1. Build/run the React frontend (Node 18+):
+   - Dev (hot reload, proxies `/api` → `http://127.0.0.1:8000`): `cd frontend; npm install; npm run dev` → http://localhost:5173
+   - Production: `cd frontend; npm run build` (outputs `frontend/dist/`)
+2. Serve the built app + API from FastAPI:
+   ```powershell
+   .venv\Scripts\Activate.ps1
+   python -m uvicorn app.main:app --app-dir backend --port 8000
+   ```
+   Then open http://127.0.0.1:8000. `app/main.py` serves `frontend/dist/` (falls back to `frontend/` if no build exists) via a catch-all route that returns `index.html` for unknown paths — so React Router handles `/login` etc. API endpoints (`/api/*`), registered before the catch-all, keep priority.
 
-Then open http://127.0.0.1:8000 (serves `frontend/index.html`). API endpoints:
+API endpoints:
 - `GET  /api/teams?league=IPL&season=2026` — distinct teams
 - `GET  /api/venues?league=IPL&season=2026` — distinct venues
 - `POST /api/predict` — body `{team_a, team_b, venue, league, pitch_type?, toss_winner?, toss_decision?, stage?}` → engine result incl. `no_bet`
 
-The frontend fetches teams/venues live and passes the selected `pitch_type` (neutral/batting/bowling) from the pitch pills. `app/main.py` mounts `FRONTEND_DIR` (repo-root/frontend) at `/` via StaticFiles(html=True).
+The frontend fetches teams/venues live and passes the selected `pitch_type` (neutral/batting/bowling) from the pitch pills. Auth/session logic is the port of the old `js/auth.js`: access token in sessionStorage + HttpOnly refresh cookie; `src/auth.jsx` exposes an `AuthProvider` (use `useAuth()` / `useApi()`), and `/login` redirects there when a request 401s.
 
 ## Setup order (all scripts connect to Postgres directly via psycopg2)
 

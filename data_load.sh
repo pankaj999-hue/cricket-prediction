@@ -6,10 +6,10 @@
 # Set DATA_DIR externally to override where the JSON archives live.
 set -e
 
-cd "$(dirname "$0")/backend"
-REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
-export DATA_DIR="${DATA_DIR:-$REPO_ROOT/data/ipl_json}"
-export DATA_DIR_CPL="${DATA_DIR_CPL:-$REPO_ROOT/data/cpl_json}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$SCRIPT_DIR/backend"
+export DATA_DIR="${DATA_DIR:-$SCRIPT_DIR/data/ipl_json}"
+export DATA_DIR_CPL="${DATA_DIR_CPL:-$SCRIPT_DIR/data/cpl_json}"
 
 echo "==> Installing deps"
 python -m pip install --upgrade pip

@@ -1,6 +1,5 @@
-import psycopg2
 import psycopg2.extras
-from app.config import DATABASE_URL
+from ..utils.data_loader import get_connection
 
 def calculate(team_a, team_b, stage="League"):
     """
@@ -73,7 +72,7 @@ def get_team_experience(team):
     """Get total matches played by this team in this league"""
     from ..utils.data_loader import LEAGUE
     
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = get_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     
     cursor.execute("""
@@ -94,7 +93,7 @@ def get_knockout_win_pct(team):
     """Get team's win percentage in knockout matches"""
     from ..utils.data_loader import LEAGUE
     
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = get_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     
     cursor.execute("""

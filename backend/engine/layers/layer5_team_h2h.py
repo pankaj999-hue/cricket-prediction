@@ -1,7 +1,6 @@
-import psycopg2
 import psycopg2.extras
-from app.config import DATABASE_URL
 from ..utils import data_loader
+from ..utils.data_loader import get_connection
 RECENT_SEASONS = ['2024', '2025', '2026']
 
 
@@ -14,7 +13,7 @@ def calculate(team_a, team_b, venue=None):
     """
     MAX_POINTS = 6
     
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = get_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     
     # Get recent H2H only

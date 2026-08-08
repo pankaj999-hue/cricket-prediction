@@ -1,8 +1,6 @@
-import psycopg2
 import psycopg2.extras
-from app.config import DATABASE_URL
 from ..utils import data_loader
-from ..utils.data_loader import get_player_career_stats
+from ..utils.data_loader import get_connection, get_player_career_stats
 RECENT_SEASONS = ['2024', '2025', '2026']
 
 # Pitch types a user can supply in real time (frontend / live data):
@@ -32,7 +30,7 @@ def calculate(team_a, team_b, venue, match_date=None, toss_winner=None, toss_dec
     pitch_bias = None
     pitch_kind = None
 
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = get_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     # ---------- 1. Pitch-driven edge (real-time input) ----------

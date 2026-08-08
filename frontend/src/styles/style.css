@@ -60,6 +60,12 @@ nav{
   font-size:20px;
   letter-spacing:-0.01em;
 }
+.logo-img{
+  width:96px;height:96px;
+  object-fit:contain;
+  filter:drop-shadow(0 0 18px rgba(237,11,101,0.75));
+  animation:eyeGlow 4s ease-in-out infinite;
+}
 .logo-chev{
   width:0; height:0;
   border-style:solid;
@@ -158,6 +164,29 @@ nav{
     radial-gradient(ellipse 900px 500px at 10% -10%, rgba(196,241,53,0.12), transparent 60%),
     radial-gradient(ellipse 900px 500px at 90% 0%, rgba(237,11,101,0.14), transparent 60%);
 }
+.trinetra{
+  position:absolute;
+  left:50%;top:14px;
+  transform:translateX(-50%);
+  width:280px;height:140px;
+  border-radius:50% 50% 50% 50% / 62% 62% 38% 38%;
+  background:
+    radial-gradient(ellipse at center, rgba(237,11,101,0.55), rgba(237,11,101,0.12) 55%, transparent 72%);
+  box-shadow:0 0 70px rgba(237,11,101,0.45);
+  z-index:-1;
+  pointer-events:none;
+  animation:eyeGlow 5s ease-in-out infinite;
+}
+.trinetra::after{
+  content:'';position:absolute;
+  left:50%;top:50%;
+  width:72px;height:72px;
+  transform:translate(-50%,-50%);
+  border-radius:50%;
+  background:radial-gradient(circle at 42% 35%, rgba(255,255,255,0.95) 0%, rgba(255,77,157,0.95) 28%, rgba(122,3,51,0.95) 72%);
+  box-shadow:0 0 34px rgba(255,77,157,0.9), inset 0 0 12px rgba(237,11,101,0.6);
+}
+@keyframes eyeGlow{ 0%,100%{opacity:0.7;} 50%{opacity:1;} }
 .eyebrow{
   font-family:'JetBrains Mono', monospace;
   font-size:12px;letter-spacing:0.15em;

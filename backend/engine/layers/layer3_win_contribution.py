@@ -1,7 +1,5 @@
-from ..utils.data_loader import get_player_win_contribution
-import psycopg2
+from ..utils.data_loader import get_connection
 import psycopg2.extras
-from app.config import DATABASE_URL
 
 RECENT_SEASONS = ['2024', '2025', '2026']
 
@@ -50,7 +48,7 @@ def calculate_team_win_contribution(players):
     if not players:
         return 0
     
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = get_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     
     total_score = 0
