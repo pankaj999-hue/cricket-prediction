@@ -97,7 +97,7 @@ def get_match_info(match_id: int) -> dict:
     """Fetch a match page and return its embedded matchInfo block."""
     html = _fetch(MATCH_PAGE_URL.format(match_id=match_id))
     flight = decode_next_payload(html)
-    return _first_object(flight, re.compile(r'"matchInfo":\{"matchId":%d' % match_id)) or {}
+    return _first_object(flight, re.compile(r'"matchInfo":\{"matchId":%d' % int(match_id))) or {}
 
 
 def get_toss(match_id: int) -> dict:

@@ -80,6 +80,8 @@ def _build_alert(match_id, match_info, toss, match_date):
     team_a = _map_team((match_info.get("team1") or {}).get("teamName"))
     team_b = _map_team((match_info.get("team2") or {}).get("teamName"))
     venue = _map_venue((match_info.get("venueInfo") or {}).get("ground"))
+    if not team_a or not team_b or not venue:
+        raise ValueError(f"incomplete match_info for {match_id}: teams/venue missing")
     toss_winner = _map_team(toss.get("tossWinnerName"))
     toss_decision = toss.get("decision")
     if toss_decision:
@@ -146,7 +148,10 @@ def process_match(match_id, dry_run=False) -> bool:
     start_ms = match_info.get("startDate")
     match_date = None
     if start_ms:
-        match_date = datetime.datetime.utcfromtimestamp(start_ms / 1000).date()
+        try:
+            match_date = datetime.datetime.utcfromtimestamp(float(start_ms) / 1000).date()
+        except (TypeError, ValueError):
+            match_date = None
 
     try:
         alert = _build_alert(match_id, match_info, toss, match_date)
@@ -190,11 +195,11 @@ def process_match(match_id, dry_run=False) -> bool:
 
 
 def sweep(dry_run=False) -> int:
-    """One pass over the CPL schedule; returns the number of alerts created."""
+    """One pass over the CPL schedule; returns the number of alerts created.
+    `get_series_matches()` yields flat matchInfo objects (top-level matchId)."""
     created = 0
     for match in get_series_matches():
-        mi = match.get("matchInfo") or {}
-        mid = mi.get("matchId")
+        mid = match.get("matchId")
         if not mid:
             continue
         try:
