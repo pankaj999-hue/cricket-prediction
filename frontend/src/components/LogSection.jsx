@@ -37,14 +37,21 @@ export default function LogSection({ logs, league }) {
 
   const staticStats = accuracyStats(league);
   const displayPct = live ? live.pct : staticStats.pct;
-  const localRows = logs.map((m, i) => ({
-    key: `l-${i}`,
-    match: m.match,
-    pick: m.pick,
-    conf: m.conf,
-    badge: m.noBet ? 'nobet' : 'correct',
-    label: m.noBet ? 'NO BET' : String(m.status || '').toUpperCase(),
-  }));
+
+  // Skip local session predictions for matches already tracked server-side
+  // (the auto-collected record is the authoritative one — it scores itself).
+  const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const tracked = new Set(records.map((r) => norm(r.match)));
+  const localRows = logs
+    .filter((m) => !tracked.has(norm(m.match)))
+    .map((m, i) => ({
+      key: `l-${i}`,
+      match: m.match,
+      pick: m.pick,
+      conf: m.conf,
+      badge: m.noBet ? 'nobet' : 'correct',
+      label: m.noBet ? 'NO BET' : String(m.status || '').toUpperCase(),
+    }));
 
   const rows = [...records, ...localRows];
 
