@@ -1,22 +1,91 @@
 # backend/app/services/predictions.py
 """Prediction business logic: run the engine and persist the outcome."""
 import json
+import threading
+import time
 
 from fastapi import HTTPException
 
 from app.core.db import get_db_connection
+from app.config import PREDICTION_CACHE_SECONDS
 
 VALID_LEAGUES = ("IPL", "CPL")
 VALID_PITCH_TYPES = ("batting", "bowling", "neutral")
 CPL_DEBUT_VENUES = {"Arnos Vale Stadium, Kingstown"}
 
+# In-memory prediction cache. Two users requesting the same matchup + XIs land
+# on the same key, so the second caller gets the engine's result without
+# re-running the 10 layers or hammering the DB. Bounds: don't grow past
+# MAX_ENTRIES by evicting oldest entries regardless of age.
+PREDICTION_CACHE_MAX = 256
+
+
+def _prediction_cache():
+    """Lazily-built {key: (expires_at, result)} guarded by a lock."""
+    bucket = getattr(_prediction_cache, "bucket", None)
+    if bucket is None:
+        lock = threading.Lock()
+        with lock:
+            if getattr(_prediction_cache, "bucket", None) is None:
+                _prediction_cache.bucket = ({}, lock)
+    return _prediction_cache.bucket
+
+
+def _cache_key(req) -> str:
+    """Stable key across all engine inputs. Lists (XIs) are order-insensitive
+    since the order of the XI list shouldn't change the outcome."""
+    def norm_xi(xi):
+        return tuple(sorted(xi)) if xi else None
+    return json.dumps(
+        (
+            req.team_a, req.team_b, req.venue, req.stage, req.league,
+            req.pitch_type, req.toss_winner, req.toss_decision,
+            norm_xi(req.team_a_xi), norm_xi(req.team_b_xi),
+        ),
+        sort_keys=True,
+        default=str,
+    )
+
+
+def _cache_get(key):
+    store, lock = _prediction_cache()
+    with lock:
+        item = store.get(key)
+        if not item:
+            return None
+        expires_at, result = item
+        if time.time() > expires_at:
+            store.pop(key, None)
+            return None
+        return result
+
+
+def _cache_put(key, result) -> None:
+    store, lock = _prediction_cache()
+    with lock:
+        if len(store) >= PREDICTION_CACHE_MAX:
+            # Drop the single oldest entry to keep the map bounded.
+            oldest = min(store, key=lambda k: store[k][0])
+            store.pop(oldest, None)
+        store[key] = (time.time() + PREDICTION_CACHE_SECONDS, result)
+
 
 def run_prediction(req) -> dict:
-    """Execute the 10-layer engine for a PredictRequest and return its result."""
+    """Execute the 10-layer engine for a PredictRequest and return its result.
+
+    Identical requests (same teams, venue, stage, pitch, toss info and XIs)
+    within the TTL share one computation: the first caller runs the engine and
+    subsequent callers read the cached result instead of re-querying the DB.
+    """
+    key = _cache_key(req)
+    cached = _cache_get(key)
+    if cached is not None:
+        return cached
+
     validate_predict_request(req)
     from engine.predictor import predict_match
 
-    return predict_match(
+    result = predict_match(
         team_a=req.team_a,
         team_b=req.team_b,
         venue=req.venue,
@@ -28,6 +97,8 @@ def run_prediction(req) -> dict:
         team_a_xi=req.team_a_xi,
         team_b_xi=req.team_b_xi,
     )
+    _cache_put(key, result)
+    return result
 
 
 def validate_predict_request(req) -> None:

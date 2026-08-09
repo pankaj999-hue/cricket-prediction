@@ -59,5 +59,8 @@ RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
 EMAIL_FROM = os.getenv("EMAIL_FROM", "MATCHCALL <alerts@yourdomain.com>")
 # Seconds between poller sweeps of the CPL schedule. Keep gentle on free tiers.
 TOSS_POLL_INTERVAL = int(os.getenv("TOSS_POLL_INTERVAL", "180"))
+# How long an in-memory prediction result stays cached; repeat matchups with
+# the same XIs skip the engine + DB entirely within this window.
+PREDICTION_CACHE_SECONDS = int(os.getenv("PREDICTION_CACHE_SECONDS", "900"))
 # Skip actually sending emails when running locally without a key.
 EMAIL_DISABLED = os.getenv("EMAIL_DISABLED", "false").lower() in ("1", "true", "yes")
