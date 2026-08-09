@@ -48,8 +48,13 @@ nav{
   display:flex;
   justify-content:space-between;
   align-items:center;
-  padding:22px 5vw;
+  gap:12px;
+  padding:14px 5vw;
   border-bottom:1px solid var(--line);
+  position:sticky;top:0;z-index:100;
+  background:rgba(10,10,10,0.84);
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
 }
 .logo{
   display:flex;
@@ -78,13 +83,18 @@ nav{
   font-size:12px;color:var(--text-dim);
   font-family:'JetBrains Mono', monospace;
   letter-spacing:0.04em;
+  white-space:nowrap;
+  background:var(--surface);
+  border:1px solid var(--line);
+  padding:8px 12px;border-radius:8px;
 }
 .nav-status.offline{color:var(--pink-2);}
-.nav-right{display:flex;align-items:center;gap:18px;}
+.nav-right{display:flex;align-items:center;gap:12px;}
 .nav-auth{
   font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:0.04em;
   color:var(--green);text-decoration:none;border:1px solid var(--green);
   padding:8px 14px;border-radius:8px;cursor:pointer;
+  white-space:nowrap;
 }
 .nav-auth:hover{background:var(--green);color:#0A0A0A;}
 .nav-auth.out{color:var(--pink-2);border-color:var(--pink-2);}
@@ -845,6 +855,54 @@ footer{
   .vs-mark{text-align:center;padding:4px 0;}
   .beam-names{font-size:14px;}
   .beam-pct{font-size:13px;}
+}
+
+/* ===== MOBILE / RESPONSIVE ===== */
+html{-webkit-text-size-adjust:100%;}
+*{-webkit-tap-highlight-color:transparent;}
+
+.field-row2{grid-template-columns:1fr 1fr;margin-top:20px;}
+.venue-select{font-size:15px;}
+.nav-auth.out{max-width:200px;overflow:hidden;text-overflow:ellipsis;}
+
+@media(max-width:700px){
+  nav{padding:14px 4vw;gap:10px;}
+  .nav-right{gap:10px;}
+  .logo{font-size:15px;}
+  .nav-status{border:none;background:none;padding:0;}
+  .nav-status span:last-child{display:none;}
+  .nav-auth{padding:8px 12px;font-size:11px;}
+  .nav-auth.out{max-width:140px;}
+
+  .field-row2{grid-template-columns:1fr;}
+
+  h1{font-size:clamp(30px,9vw,44px);}
+  .hero{padding:40px 4vw 12px;}
+  .trinetra{width:220px;height:110px;top:8px;}
+  .sub{font-size:15px;}
+
+  .how-section,.builder,.leaderboard-section,.accuracy-section,.log-section,.cta-section{margin-top:56px;}
+  .section-title{margin-bottom:32px;}
+  .step-card{padding:26px 20px;}
+
+  .team-card{padding:18px;}
+  select{padding:14px 40px 14px 14px;font-size:18px;}
+  .venue-select{font-size:16px;}
+  .pitch-pill{padding:11px 18px;}
+  .predict-btn{width:100%;padding:16px 20px;font-size:15px;clip-path:none;border-radius:6px;}
+
+  .beam-names{flex-wrap:wrap;gap:0 12px;}
+  .cta-form{flex-direction:column;}
+  .cta-input{min-width:0;width:100%;font-size:16px;}
+  input{font-size:16px;}
+}
+
+@media(max-width:400px){
+  .beam-names{font-size:13px;}
+  .beam-pct{font-size:12px;}
+  .beam-track{height:44px;}
+  .league-tab{padding:10px 14px;font-size:12px;}
+  .cta-title{font-size:22px;}
 }
 
 @media(prefers-reduced-motion:reduce){

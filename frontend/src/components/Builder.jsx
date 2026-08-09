@@ -57,20 +57,19 @@ export default function Builder({
         </div>
       </div>
 
-      <div className="field-grid" style={{ gridTemplateColumns: '1fr auto 1fr', marginTop: 20 }}>
-        <div className="team-card">
+      <div className="field-grid field-row2">
+        <div className="team-card a">
           <div className="team-label">VENUE</div>
           <select
+            className="venue-select"
             value={vIdx >= 0 ? vIdx : ''}
             onChange={(e) => onVenue(venues[Number(e.target.value)])}
-            style={{ fontSize: 15 }}
             aria-label="Venue"
           >
             {venues.map((v, i) => <option key={i} value={i}>{v}</option>)}
           </select>
           <div className="team-swatch"><span>Neutral / auto-detected</span></div>
         </div>
-        <div className="vs-mark" style={{ fontSize: 14 }}>PITCH</div>
         <div className="team-card b">
           <div className="team-label">PITCH TYPE (SOIL) — LIVE</div>
           <div className="pitch-pills">
