@@ -15,7 +15,7 @@ const toRow = (r) => {
   return { key: `s-${r.match_id}`, match: r.match, pick: r.pick, conf: r.confidence, badge: 'nobet', label: 'IN PLAY' };
 };
 
-export default function LogSection({ logs, league }) {
+export default function LogSection({ league }) {
   const call = useApi();
   const [records, setRecords] = useState([]);
   const [live, setLive] = useState(null);
@@ -37,23 +37,7 @@ export default function LogSection({ logs, league }) {
 
   const staticStats = accuracyStats(league);
   const displayPct = live ? live.pct : staticStats.pct;
-
-  // Skip local session predictions for matches already tracked server-side
-  // (the auto-collected record is the authoritative one — it scores itself).
-  const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
-  const tracked = new Set(records.map((r) => norm(r.match)));
-  const localRows = logs
-    .filter((m) => !tracked.has(norm(m.match)))
-    .map((m, i) => ({
-      key: `l-${i}`,
-      match: m.match,
-      pick: m.pick,
-      conf: m.conf,
-      badge: m.noBet ? 'nobet' : 'correct',
-      label: m.noBet ? 'NO BET' : String(m.status || '').toUpperCase(),
-    }));
-
-  const rows = [...records, ...localRows];
+  const rows = records;
 
   return (
     <section className="log-section">

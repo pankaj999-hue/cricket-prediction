@@ -33,7 +33,6 @@ export default function Home() {
   const [predicting, setPredicting] = useState(false);
   const [result, setResult] = useState(null);
   const [resultKey, setResultKey] = useState(0);
-  const [logs, setLogs] = useState([]);
   const [leaderboard, setLeaderboard] = useState([]);
   const [lbError, setLbError] = useState('');
   const builderRef = useRef(null);
@@ -106,16 +105,6 @@ export default function Home() {
     })();
   }
 
-  function pushLog(p, noBet) {
-    setLogs((prev) => [{
-      pick: noBet ? 'No Bet' : p.predicted_winner,
-      conf: noBet ? '—' : p.confidence,
-      status: noBet ? 'no bet' : String(p.confidence || '').toLowerCase(),
-      noBet,
-      match: `${p.team_a} vs ${p.team_b}`,
-    }, ...prev].slice(0, 8));
-  }
-
   async function handlePredict() {
     if (!teamA || !teamB || teamA === teamB) {
       setHint({ text: '// pick two different teams', kind: 'err' });
@@ -138,7 +127,6 @@ export default function Home() {
       });
       setResult(p);
       setResultKey((k) => k + 1);
-      pushLog(p, !!p.no_bet);
       if (resultRef.current) resultRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     } catch (e) {
       setHint({ text: 'Engine error: ' + e.message, kind: 'err' });
@@ -189,7 +177,7 @@ export default function Home() {
       <ResultPanel result={result} show={!!result} animationKey={resultKey} resultRef={resultRef} />
       <Leaderboard teams={teams} rows={leaderboard} error={lbError} />
       <AccuracySection league={league} />
-      <LogSection logs={logs} league={league} />
+      <LogSection league={league} />
       <CtaSection />
       <ChevronStrip />
       <Footer />
