@@ -29,7 +29,9 @@ logger = logging.getLogger("toss_watcher")
 # St Lucia Kings, St Kitts and Nevis Patriots, Trinbago Knight Riders,
 # Guyana Amazon Warriors, Barbados Royals). Defensive map in case Cricbuzz
 # renames one mid-season.
-TEAM_MAP = {}
+TEAM_MAP = {
+    "Saint Lucia Kings": "St Lucia Kings",
+}
 
 # Cricbuzz ground name (matchInfo.venueInfo.ground) -> DB canonical venue.
 # data_loader.normalize_venue covers all of these too; mapping here keeps the
@@ -214,6 +216,7 @@ def score_finished(force=False) -> int:
         winner = (result or {}).get("winningTeam")
         if not winner:
             continue  # match not finished yet
+        winner = _map_team(winner)  # Cricbuzz names may differ from DB canonical
         predicted = alert["predicted_winner"]
         # 'No Bet' rows have no winner, but a real called winner must match.
         correct = bool(predicted) and predicted == winner
