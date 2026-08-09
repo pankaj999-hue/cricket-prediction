@@ -12,11 +12,13 @@ import threading
 import time
 
 from app.config import TOSS_POLL_INTERVAL
-from app.services.cricbuzz import get_match_info, get_series_matches, get_toss
+from app.services.cricbuzz import get_match_info, get_series_matches, get_result, get_toss
 from app.services.notify import render_toss_email, send_toss_email
 from app.services.subscribe import (
     get_active_subscribers,
+    get_unscored_alerts,
     log_toss_alert,
+    score_alert,
     toss_alert_exists,
 )
 from engine.utils import data_loader  # noqa: F401  (sets LEAGUE default / normalizes)
@@ -196,6 +198,35 @@ def process_match(match_id, dry_run=False) -> bool:
     return True
 
 
+def score_finished(force=False) -> int:
+    """Score previously-logged alerts whose matches have now finished.
+
+    For each unscored alert: fetch the match result; if the match has a winner,
+    mark the alert as correct/wrong (No Bet alerts are recorded but never count
+    as a call). Returns the number newly scored."""
+    scored = 0
+    for alert in get_unscored_alerts():
+        try:
+            result = get_result(alert["cricbuzz_match_id"])
+        except Exception as e:
+            logger.warning("result fetch failed for %s: %s", alert["cricbuzz_match_id"], e)
+            continue
+        winner = (result or {}).get("winningTeam")
+        if not winner:
+            continue  # match not finished yet
+        predicted = alert["predicted_winner"]
+        # 'No Bet' rows have no winner, but a real called winner must match.
+        correct = bool(predicted) and predicted == winner
+        try:
+            score_alert(alert["cricbuzz_match_id"], winner, correct)
+            scored += 1
+        except Exception as e:
+            logger.warning("score error for %s: %s", alert["cricbuzz_match_id"], e)
+    if scored:
+        logger.info("scored %d finished match(es)", scored)
+    return scored
+
+
 def sweep(dry_run=False) -> int:
     """One pass over the CPL schedule; returns the number of alerts created.
     `get_series_matches()` yields flat matchInfo objects (top-level matchId)."""
@@ -209,8 +240,10 @@ def sweep(dry_run=False) -> int:
                 created += 1
         except Exception as e:
             logger.warning("sweep error on %s: %s", mid, e)
+    scored = score_finished()
     _STATUS["last_sweep"] = datetime.datetime.utcnow().isoformat()
     _STATUS["last_sweep_result"] = created
+    _STATUS["last_scored"] = scored
     return created
 
 

@@ -100,3 +100,91 @@ def toss_alert_exists(cricbuzz_match_id: str) -> bool:
     cur.close()
     conn.close()
     return exists
+
+
+def get_unscored_alerts() -> list[dict]:
+    """Alerts whose match may now be finished but hasn't been scored yet."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT cricbuzz_match_id, team_a, team_b, predicted_winner, confidence, "
+        "team_a_score, team_b_score FROM toss_alerts WHERE result_winner IS NULL "
+        "ORDER BY created_at DESC"
+    )
+    rows = [
+        {
+            "cricbuzz_match_id": str(r[0]), "team_a": r[1], "team_b": r[2],
+            "predicted_winner": r[3], "confidence": r[4] or "",
+            "team_a_score": float(r[5] or 0), "team_b_score": float(r[6] or 0),
+        }
+        for r in cur.fetchall()
+    ]
+    cur.close()
+    conn.close()
+    return rows
+
+
+def score_alert(cricbuzz_match_id: str, result_winner: str, is_correct: bool) -> None:
+    """Record the actual match winner and whether our call was right."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE toss_alerts SET result_winner = %s, is_correct = %s, scored_at = NOW() "
+        "WHERE cricbuzz_match_id = %s",
+        (result_winner, is_correct, str(cricbuzz_match_id)),
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+def recent_records(limit: int = 8) -> dict:
+    """Recent scored toss calls + accuracy stats for the frontend Records panel."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """SELECT match_name, team_a, team_b, predicted_winner, confidence,
+                  team_a_score, team_b_score, is_correct, result_winner,
+                  toss_winner, cricbuzz_match_id
+           FROM toss_alerts ORDER BY created_at DESC LIMIT %s""",
+        (limit,),
+    )
+    rows = []
+    for r in cur.fetchall():
+        predicted = r[3]
+        no_bet = bool(predicted and predicted == "No Bet")
+        rows.append({
+            "match_id": str(r[10]),
+            "match": r[0] or (f"{r[1]} vs {r[2]}"),
+            "pick": "No Bet" if no_bet else (predicted or ""),
+            "confidence": "—" if no_bet else (r[4] or ""),
+            "no_bet": no_bet,
+            "team_a_score": float(r[5] or 0),
+            "team_b_score": float(r[6] or 0),
+            "is_correct": r[7] if r[7] is not None else None,
+            "result_winner": r[8],
+            "toss": r[9],
+        })
+
+    cur.execute(
+        """SELECT count(*),
+                  count(*) FILTER (WHERE is_correct = TRUE),
+                  count(*) FILTER (WHERE predicted_winner = 'No Bet')
+           FROM toss_alerts WHERE is_correct IS NOT NULL"""
+    )
+    total, correct, no_bets = cur.fetchone()
+    cur.close()
+    conn.close()
+
+    calls = (total or 0) - (no_bets or 0)
+    pct = round((correct or 0) / calls * 100) if calls else 0
+    return {
+        "records": rows,
+        "accuracy": {
+            "calls": calls,
+            "correct": correct or 0,
+            "wrong": max(0, calls - (correct or 0)),
+            "no_bet": no_bets or 0,
+            "pct": pct,
+        },
+    }

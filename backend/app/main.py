@@ -86,6 +86,13 @@ def create_app() -> FastAPI:
         from app.services.toss_watcher import status as tw_status
         return tw_status()
 
+    @app.get("/api/toss-records")
+    def toss_records(limit: int = 8):
+        """Recently collected pitch/toss calls with win/loss results, plus
+        live accuracy. Powers the Recent calls panel on the home page."""
+        from app.services.subscribe import recent_records
+        return recent_records(limit=max(1, min(limit, 50)))
+
     _mount_frontend(app)
 
     return app

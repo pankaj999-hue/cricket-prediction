@@ -273,6 +273,9 @@ CREATE TABLE IF NOT EXISTS toss_alerts (
     confidence VARCHAR(20),
     key_factors JSONB,
     sent_count INTEGER DEFAULT 0,
+    result_winner VARCHAR(100),
+    is_correct BOOLEAN,
+    scored_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT NOW()
 );
 

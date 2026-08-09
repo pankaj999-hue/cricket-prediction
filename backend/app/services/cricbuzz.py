@@ -88,6 +88,7 @@ def _first_object(flight: str, regex: re.Pattern):
 
 MATCH_INFO_RE = re.compile(r'"matchInfo":\{"matchId":\d+')
 TOSS_RE = re.compile(r'"tossResults":\{')
+RESULT_RE = re.compile(r'"result":\{')
 
 
 # ---------------------------------------------------------------------------
@@ -105,6 +106,15 @@ def get_toss(match_id: int) -> dict:
     html = _fetch(MATCH_PAGE_URL.format(match_id=match_id))
     flight = decode_next_payload(html)
     return _first_object(flight, TOSS_RE) or {}
+
+
+def get_result(match_id: int) -> dict:
+    """Fetch a match page and return its result block ({} if not finished).
+    Contains e.g. {"resultType":"win","winningTeam":"Trinbago Knight Riders",
+    "winningMargin":19,"winByRuns":true}."""
+    html = _fetch(MATCH_PAGE_URL.format(match_id=match_id))
+    flight = decode_next_payload(html)
+    return _first_object(flight, RESULT_RE) or {}
 
 
 def get_series_matches(series_id: int = CPL_SERIES_ID) -> list[dict]:
