@@ -143,6 +143,8 @@ def process_match(match_id, dry_run=False) -> bool:
     toss = get_toss(match_id)
     if not toss:
         return False  # not tossed yet — try again next sweep
+    if not toss.get("tossWinnerName"):
+        return False  # Preview matches embed an EMPTY tossResults block
 
     match_info = get_match_info(match_id)
     start_ms = match_info.get("startDate")
