@@ -93,6 +93,84 @@ def create_app() -> FastAPI:
         from app.services.subscribe import recent_records
         return recent_records(limit=max(1, min(limit, 50)))
 
+    @app.get("/api/ticker")
+    def ticker():
+        """Next scheduled CPL match: teams, start IST, toss winner, playing XIs
+        and the logged prediction (when available). Drives the homescreen
+        announcement ticker. Results cached briefly so many browsers polling the
+        ticker don't each hammer Cricbuzz."""
+        import datetime
+        import time as _time
+
+        cache = getattr(ticker, "_cache", None)
+        now = _time.time()
+        if cache and now < cache[0]:
+            return cache[1]
+        ticker._cache = (now + 90, None)
+
+        from app.services.cricbuzz import get_match_squads, get_toss, upcoming_matches
+        from app.services.subscribe import get_alert_by_match
+        from app.services.toss_watcher import VENUE_MAP
+
+        IST = datetime.timezone(datetime.timedelta(hours=5, minutes=30))
+
+        def fmt_ist(start_ms):
+            try:
+                dt = datetime.datetime.fromtimestamp(float(start_ms) / 1000, tz=IST)
+                return dt.strftime("%a %d %b %I:%M %p IST")
+            except (TypeError, ValueError):
+                return None
+
+        entry = None
+        for match in upcoming_matches()[:1]:
+            mid = match.get("matchId")
+            if not mid:
+                continue
+            team_a = (match.get("team1") or {}).get("teamName")
+            team_b = (match.get("team2") or {}).get("teamName")
+            ground = (match.get("venueInfo") or {}).get("ground")
+            venue = VENUE_MAP.get(ground, ground) if ground else None
+
+            toss = {}
+            try:
+                toss = get_toss(mid)
+            except Exception:
+                pass
+
+            xi = {}
+            try:
+                squads = get_match_squads(mid)
+                for s in squads:
+                    names = [p["name"] for p in s.get("players", []) if p.get("name")]
+                    if names:
+                        xi[s.get("team")] = names
+            except Exception:
+                pass
+
+            alert = None
+            try:
+                alert = get_alert_by_match(str(mid))
+            except Exception:
+                pass
+
+            entry = {
+                "match_id": str(mid),
+                "team_a": team_a,
+                "team_b": team_b,
+                "venue": venue,
+                "start_ist": fmt_ist(match.get("startDate")),
+                "state": match.get("state"),
+                "toss_winner": toss.get("tossWinnerName") if toss.get("tossWinnerName") else None,
+                "toss_decision": toss.get("decision"),
+                "playing_xi": xi,
+                "prediction": alert,
+            }
+            break
+
+        payload = {"match": entry}
+        ticker._cache = (now + 90, payload)
+        return payload
+
     _mount_frontend(app)
 
     return app

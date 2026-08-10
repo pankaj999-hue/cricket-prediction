@@ -132,6 +132,29 @@ def toss_alert_has_toss(cricbuzz_match_id: str) -> bool:
     return bool(row and row[0])
 
 
+def get_alert_by_match(cricbuzz_match_id: str) -> dict | None:
+    """Prediction stored for a specific match (loose team-name matching so a
+    Cricbuzz 'Saint Lucia Kings' row joins to the canonical DB name)."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT team_a, team_b, predicted_winner, confidence, team_a_score, "
+        "team_b_score, result_winner FROM toss_alerts WHERE cricbuzz_match_id = %s",
+        (cricbuzz_match_id,),
+    )
+    r = cur.fetchone()
+    cur.close()
+    conn.close()
+    if not r:
+        return None
+    return {
+        "team_a": r[0], "team_b": r[1], "predicted_winner": r[2],
+        "confidence": r[3] or "", "no_bet": bool(r[2] and r[2] == "No Bet"),
+        "team_a_score": float(r[4] or 0), "team_b_score": float(r[5] or 0),
+        "result_winner": r[6],
+    }
+
+
 def get_unscored_alerts() -> list[dict]:
     """Alerts whose match may now be finished but hasn't been scored yet."""
     conn = get_db_connection()

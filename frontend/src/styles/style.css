@@ -146,7 +146,13 @@ nav{
 }
 .ticker-dot.live{background:var(--pink-2);animation:pulse 1.5s infinite;}
 .ticker-dot.upcoming{background:var(--green);}
+.ticker-dot.toss{background:var(--yellow,#f5b93d);}
+.ticker-dot.xi{background:var(--blue,#4aa3ff);}
+.ticker-dot.pick{background:var(--pink-2);}
+.ticker-dot.accent{background:var(--green);}
 .ticker-dot.done{background:var(--text-dim);}
+.ticker-first{color:var(--text);font-weight:600;}
+.ticker-second{color:var(--text-dim);}
 .ticker-score{color:var(--text);font-weight:600;}
 .ticker-live-tag{
   font-size:10px;

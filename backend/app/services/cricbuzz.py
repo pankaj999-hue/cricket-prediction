@@ -149,6 +149,22 @@ def get_series_matches(series_id: int = CPL_SERIES_ID) -> list[dict]:
     return out
 
 
+def upcoming_matches(series_id: int = CPL_SERIES_ID) -> list[dict]:
+    """Upcoming/live CPL matches ordered by start time (earliest first)."""
+    items = []
+    for m in get_series_matches(series_id):
+        state = (m.get("state") or "").lower()
+        if state in ("complete", "abandoned"):
+            continue
+        try:
+            start = float(m.get("startDate"))
+        except (TypeError, ValueError):
+            continue
+        items.append((start, m))
+    items.sort(key=lambda x: x[0])
+    return [m for _, m in items]
+
+
 # ---------------------------------------------------------------------------
 # Live lineup auto-fetch: recover the ACTUAL playing XI for a match so the
 # engine doesn't rely on the static squad table (which is roster, not XI).
