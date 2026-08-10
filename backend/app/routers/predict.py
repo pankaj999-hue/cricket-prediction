@@ -12,7 +12,7 @@ router = APIRouter(prefix="/api", tags=["predict"])
 RESULT_KEYS = [
     "team_a", "team_b", "venue", "team_a_score", "team_b_score",
     "predicted_winner", "confidence", "no_bet", "point_gap",
-    "key_factors", "layer_breakdown",
+    "key_factors", "layer_breakdown", "xi_note",
 ]
 
 

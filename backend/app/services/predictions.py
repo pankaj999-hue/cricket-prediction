@@ -70,6 +70,25 @@ def _cache_put(key, result) -> None:
         store[key] = (time.time() + PREDICTION_CACHE_SECONDS, result)
 
 
+def _resolve_live_xi(req):
+    """Try to fill the request's XIs from Cricbuzz's actual lineup for today's
+    match. Returns (xi_a, xi_b, note) — empty/None values mean "fall back"."""
+    try:
+        from app.services.cricbuzz import fetch_today_xi
+        xi = fetch_today_xi(req.league, req.team_a, req.team_b)
+    except Exception:
+        return None, None, None
+    if not xi or not xi[0] or not xi[1]:
+        return (
+            None, None,
+            "No live lineup on Cricbuzz yet — using expected XI",
+        )
+    return (
+        xi[0], xi[1],
+        "Live XI from Cricbuzz (actual lineup)",
+    )
+
+
 def run_prediction(req) -> dict:
     """Execute the 10-layer engine for a PredictRequest and return its result.
 
@@ -77,12 +96,20 @@ def run_prediction(req) -> dict:
     within the TTL share one computation: the first caller runs the engine and
     subsequent callers read the cached result instead of re-querying the DB.
     """
+    validate_predict_request(req)
+
+    # Auto-lineup: pull today's actual XI off Cricbuzz when the caller asked
+    # for it and didn't supply explicit XIs. Silent fallback keeps predict
+    # working on days with no CPL/IPL fixture or before lineups are announced.
+    xi_note = None
+    if getattr(req, "auto_xi", False) and not req.team_a_xi and not req.team_b_xi:
+        req.team_a_xi, req.team_b_xi, xi_note = _resolve_live_xi(req)
+
     key = _cache_key(req)
     cached = _cache_get(key)
     if cached is not None:
         return cached
 
-    validate_predict_request(req)
     from engine.predictor import predict_match
 
     result = predict_match(
@@ -97,6 +124,7 @@ def run_prediction(req) -> dict:
         team_a_xi=req.team_a_xi,
         team_b_xi=req.team_b_xi,
     )
+    result["xi_note"] = xi_note
     _cache_put(key, result)
     return result
 

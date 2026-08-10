@@ -258,22 +258,82 @@ def get_expected_xi(team_name):
     
     return unique_players[:12]
 
+def resolve_player_by_name(name, team_name=None):
+    """Map an external full name (Cricbuzz scraped XI, e.g. 'Roston Chase') to
+    the shorthand stored in players (e.g. 'RL Chase'). Returns a
+    (player_id, name) dict or None.
+
+    1) direct substring hit; then surname search where the player's first name
+    or first initial appears, so same-surname players are not picked blind.
+    Team-scoped candidates (players who actually played FOR the team) are
+    preferred; falls back to a global surname search for new signings."""
+    if not name:
+        return None
+    conn = get_connection()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    try:
+        cursor.execute(
+            "SELECT player_id, name FROM players WHERE name ILIKE %s "
+            "ORDER BY LENGTH(name) LIMIT 1", (f"%{name}%",))
+        direct = cursor.fetchone()
+        if direct:
+            return direct
+
+        parts = name.split()
+        if len(parts) < 2:
+            return None
+        first_name = parts[0].lower()
+        first_initial = first_name[0]
+        last_name = parts[-1]
+
+        def pick(candidates):
+            preferred = [
+                c for c in candidates
+                if first_name in c['name'].lower() or first_initial in c['name'].lower()
+            ]
+            pool = preferred if preferred else []
+            if len(pool) == 1:
+                return pool[0]
+            if len(pool) > 1:
+                full_name = ' '.join(parts).lower()
+                for c in pool:
+                    if full_name in c['name'].lower() or c['name'].lower() in full_name:
+                        return c
+            return None
+
+        if team_name:
+            cursor.execute("""
+                SELECT DISTINCT p.player_id, p.name
+                FROM players p
+                JOIN deliveries d ON p.player_id = d.batter_id OR p.player_id = d.bowler_id
+                JOIN matches m ON d.match_id = m.match_id
+                WHERE p.name ILIKE %s
+                  AND m.league = %s
+                  AND ((p.player_id = d.batter_id AND d.batting_team = %s)
+                    OR (p.player_id = d.bowler_id AND d.bowling_team = %s))
+                ORDER BY p.name
+            """, (f"%{last_name}%", LEAGUE, team_name, team_name))
+            match = pick(cursor.fetchall())
+            if match:
+                return match
+
+        cursor.execute(
+            "SELECT player_id, name FROM players WHERE name ILIKE %s "
+            "ORDER BY name", (f"%{last_name}%",))
+        return pick(cursor.fetchall())
+    finally:
+        cursor.close()
+        conn.close()
+
+
 def get_match_players(team_name, user_xi=None):
     """Get players for prediction — user XI or auto-fetch"""
     if user_xi and len(user_xi) >= 8:
-        conn = get_connection()
-        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        
         players = []
         for name in user_xi:
-            cursor.execute("SELECT player_id, name FROM players WHERE name ILIKE %s LIMIT 1", (f"%{name}%",))
-            result = cursor.fetchone()
+            result = resolve_player_by_name(name, team_name)
             if result:
                 players.append(result)
-        
-        cursor.close()
-        conn.close()
-        
         if len(players) >= 8:
             return players
     

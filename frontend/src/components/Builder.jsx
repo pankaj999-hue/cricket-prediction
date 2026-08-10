@@ -3,8 +3,8 @@ import { teamColor } from '../constants';
 export default function Builder({
   teams, venues, league, season,
   teamA, teamB, venue,
-  pitch, hint, predicting,
-  onTeamA, onTeamB, onVenue, onPitch, onLeague, onPredict,
+  pitch, autoXi, hint, predicting,
+  onTeamA, onTeamB, onVenue, onPitch, onLeague, onAutoXi, onPredict,
   builderRef,
 }) {
   const aIdx = teams.indexOf(teamA);
@@ -91,6 +91,14 @@ export default function Builder({
       <div className="predict-row">
         <button className="predict-btn" id="predictBtn" disabled={predicting} onClick={onPredict}>
           {predicting ? 'Calling it…' : 'Call the match'}
+        </button>
+        <button
+          type="button"
+          className={'auto-xi-tab' + (autoXi ? ' active' : '')}
+          title="Use the actual playing XI from Cricbuzz for today's match instead of the expected squad"
+          onClick={() => onAutoXi(!autoXi)}
+        >
+          LIVE XI {autoXi ? 'ON' : 'OFF'}
         </button>
       </div>
       <div className="hint" style={{ color: hintColor }}>{hint.text || ''}</div>

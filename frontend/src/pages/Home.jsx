@@ -29,6 +29,7 @@ export default function Home() {
   const [teamB, setTeamB] = useState('');
   const [venue, setVenue] = useState('');
   const [pitch, setPitch] = useState('neutral');
+  const [autoXi, setAutoXi] = useState(true);
   const [hint, setHint] = useState({ text: '', kind: '' });
   const [predicting, setPredicting] = useState(false);
   const [result, setResult] = useState(null);
@@ -123,6 +124,7 @@ export default function Home() {
           league,
           stage: 'League',
           pitch_type: pitch,
+          auto_xi: autoXi,
         }),
       });
       setResult(p);
@@ -164,12 +166,14 @@ export default function Home() {
         teamB={teamB}
         venue={venue}
         pitch={pitch}
+        autoXi={autoXi}
         hint={hint}
         predicting={predicting}
         onTeamA={setTeamA}
         onTeamB={setTeamB}
         onVenue={setVenue}
         onPitch={setPitch}
+        onAutoXi={setAutoXi}
         onLeague={handleLeague}
         onPredict={handlePredict}
         builderRef={builderRef}

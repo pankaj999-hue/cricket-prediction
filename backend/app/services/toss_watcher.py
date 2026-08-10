@@ -11,8 +11,14 @@ import logging
 import threading
 import time
 
-from app.config import TOSS_POLL_INTERVAL
-from app.services.cricbuzz import get_match_info, get_series_matches, get_result, get_toss
+from app.config import PRE_MATCH_MINUTES, TOSS_POLL_INTERVAL
+from app.services.cricbuzz import (
+    get_match_info,
+    get_match_squads,
+    get_series_matches,
+    get_result,
+    get_toss,
+)
 from app.services.notify import render_toss_email, send_toss_email
 from app.services.subscribe import (
     get_active_subscribers,
@@ -20,6 +26,7 @@ from app.services.subscribe import (
     log_toss_alert,
     score_alert,
     toss_alert_exists,
+    toss_alert_has_toss,
 )
 from engine.utils import data_loader  # noqa: F401  (sets LEAGUE default / normalizes)
 
@@ -79,15 +86,40 @@ def _stage(desc):
     return "League"
 
 
-def _build_alert(match_id, match_info, toss, match_date):
+def _scraped_xi(match_info, match_id):
+    """Recover the actual playing XIs for a match from Cricbuzz and map them to
+    DB canonical team names. Returns (xi_a, xi_b) or (None, None) when one side
+    hasn't named a full lineup yet."""
+    try:
+        squads = get_match_squads(match_id)
+    except Exception:
+        return None, None
+    team_a = _map_team((match_info.get("team1") or {}).get("teamName"))
+    team_b = _map_team((match_info.get("team2") or {}).get("teamName"))
+    xi_a = []
+    xi_b = []
+    for s in squads:
+        names = [p["name"] for p in s.get("players", []) if p.get("name")]
+        canonical = _map_team(s.get("team"))
+        if canonical == team_a:
+            xi_a = names
+        elif canonical == team_b:
+            xi_b = names
+    if len(xi_a) >= 8 and len(xi_b) >= 8:
+        return xi_a, xi_b
+    return None, None
+
+
+def _build_alert(match_id, match_info, toss, match_date, team_a_xi=None, team_b_xi=None):
     """Run the engine and assemble the alert dict shared by email + DB log."""
     team_a = _map_team((match_info.get("team1") or {}).get("teamName"))
     team_b = _map_team((match_info.get("team2") or {}).get("teamName"))
     venue = _map_venue((match_info.get("venueInfo") or {}).get("ground"))
     if not team_a or not team_b or not venue:
         raise ValueError(f"incomplete match_info for {match_id}: teams/venue missing")
-    toss_winner = _map_team(toss.get("tossWinnerName"))
-    toss_decision = toss.get("decision")
+    has_toss = bool(toss and toss.get("tossWinnerName"))
+    toss_winner = _map_team(toss.get("tossWinnerName")) if has_toss else None
+    toss_decision = toss.get("decision") if has_toss else None
     if toss_decision:
         toss_decision = "Batting" if toss_decision.lower().startswith("bat") else "Bowling"
 
@@ -110,6 +142,8 @@ def _build_alert(match_id, match_info, toss, match_date):
                 league="CPL",
                 toss_winner=toss_winner,
                 toss_decision=toss_decision,
+                team_a_xi=team_a_xi,
+                team_b_xi=team_b_xi,
             )
             break
         except psycopg2.OperationalError as e:
@@ -138,65 +172,91 @@ def _build_alert(match_id, match_info, toss, match_date):
     }
 
 
-def process_match(match_id, dry_run=False) -> bool:
-    """Handle a single match: fetch toss; if tossed and not yet handled, run
-    the engine and email subscribers. Returns True when an alert was emitted."""
-    if toss_alert_exists(str(match_id)):
-        return False
+def process_match(match_id, start_ms=None, state=None, dry_run=False) -> bool:
+    """Handle a single match.
 
-    toss = get_toss(match_id)
-    if not toss:
-        return False  # not tossed yet — try again next sweep
-    if not toss.get("tossWinnerName"):
-        return False  # Preview matches embed an EMPTY tossResults block
-
-    match_info = get_match_info(match_id)
-    start_ms = match_info.get("startDate")
-    match_date = None
+    Pre-match (start minus PRE_MATCH_MINUTES) — run the engine on the scraped
+    live XI (no toss yet) and log it so the Recent-calls tab gets a call ahead
+    of the toss. Once the toss lands, rebuild the same alert with the toss info
+    (upserted in place) and email subscribers."""
+    if state and str(state).lower() in ("complete", "abandoned"):
+        return False  # score_finished() settles finished matches
     if start_ms:
         try:
-            match_date = datetime.datetime.utcfromtimestamp(float(start_ms) / 1000).date()
+            start_ms = float(start_ms)
         except (TypeError, ValueError):
-            match_date = None
+            start_ms = None
+    now_ms = time.time() * 1000
+    if start_ms and now_ms < start_ms - PRE_MATCH_MINUTES * 60_000:
+        return False  # too far from the match — wait for the pre-match timer
+
+    toss = get_toss(match_id)
+    has_toss = bool(toss and toss.get("tossWinnerName"))
+
+    exists = toss_alert_exists(str(match_id))
+    if exists:
+        if toss_alert_has_toss(str(match_id)):
+            return False  # already handled with toss info
+        if not has_toss:
+            return False  # pre-toss call already logged — nothing new yet
+        # fall through: pre-toss alert exists and the toss just landed -> update
+
+    if not has_toss and not start_ms:
+        return False
+    if not has_toss and start_ms and now_ms > start_ms:
+        return False  # past start without a recorded toss — skip late noisy alerts
+
+    match_info = get_match_info(match_id)
+    match_date = None
+    try:
+        match_date = datetime.datetime.utcfromtimestamp(float(match_info.get("startDate") or start_ms) / 1000).date()
+    except (TypeError, ValueError):
+        match_date = None
+
+    team_a_xi, team_b_xi = _scraped_xi(match_info, match_id)
 
     try:
-        alert = _build_alert(match_id, match_info, toss, match_date)
+        alert = _build_alert(
+            match_id, match_info, toss, match_date,
+            team_a_xi=team_a_xi, team_b_xi=team_b_xi,
+        )
     except Exception as e:
         logger.warning("engine failed for match %s: %s", match_id, e)
         return False
 
-    subscribers = [s["email"] for s in get_active_subscribers("CPL")]
-
-    if subscribers:
-        subject = (
-            f"Toss alert: {alert['team_a']} vs {alert['team_b']} — "
-            f"{alert['toss_winner']} chose {alert['toss_decision']}"
-        )
-        body = render_toss_email(
-            alert["team_a"], alert["team_b"], alert["venue"],
-            alert["toss_winner"], alert["toss_decision"],
-            alert["predicted_winner"], alert["no_bet"],
-            alert["team_a_score"], alert["team_b_score"], alert["confidence"],
-            alert["key_factors"],
-        )
-        if dry_run:
-            logger.info("dry-run: would email %d subscriber(s) for %s", len(subscribers), match_id)
+    if has_toss:
+        subscribers = [s["email"] for s in get_active_subscribers("CPL")]
+        if subscribers:
+            subject = (
+                f"Toss alert: {alert['team_a']} vs {alert['team_b']} — "
+                f"{alert['toss_winner']} chose {alert['toss_decision']}"
+            )
+            body = render_toss_email(
+                alert["team_a"], alert["team_b"], alert["venue"],
+                alert["toss_winner"], alert["toss_decision"],
+                alert["predicted_winner"], alert["no_bet"],
+                alert["team_a_score"], alert["team_b_score"], alert["confidence"],
+                alert["key_factors"],
+            )
+            if dry_run:
+                logger.info("dry-run: would email %d subscriber(s) for %s", len(subscribers), match_id)
+            else:
+                ok_count = 0
+                for email in subscribers:
+                    ok, _detail = send_toss_email(email, subject, body)
+                    if ok:
+                        ok_count += 1
+                alert["sent_count"] = ok_count
         else:
-            ok_count = 0
-            for email in subscribers:
-                ok, _detail = send_toss_email(email, subject, body)
-                if ok:
-                    ok_count += 1
-            alert["sent_count"] = ok_count
-    else:
-        logger.info("no subscribers yet for %s — skipping email", match_id)
+            logger.info("no subscribers yet for %s — skipping email", match_id)
 
     if not dry_run:
         try:
             log_toss_alert(alert)
         except Exception as e:
             logger.warning("could not persist alert for %s: %s", match_id, e)
-    logger.info("toss alert processed for %s (sent=%d)", match_id, alert["sent_count"])
+    logger.info("toss alert processed for %s (toss=%s, sent=%d)",
+                match_id, has_toss, alert["sent_count"])
     return True
 
 
@@ -239,7 +299,12 @@ def sweep(dry_run=False) -> int:
         if not mid:
             continue
         try:
-            if process_match(str(mid), dry_run=dry_run):
+            if process_match(
+                str(mid),
+                start_ms=match.get("startDate"),
+                state=match.get("state"),
+                dry_run=dry_run,
+            ):
                 created += 1
         except Exception as e:
             logger.warning("sweep error on %s: %s", mid, e)

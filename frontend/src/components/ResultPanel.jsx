@@ -58,6 +58,9 @@ export default function ResultPanel({ result, show, animationKey, resultRef }) {
                 </div>
               ))}
             </div>
+            {result && result.xi_note && (
+              <div className="xi-note" id="xiNote">{result.xi_note}</div>
+            )}
           </div>
         )}
       </div>

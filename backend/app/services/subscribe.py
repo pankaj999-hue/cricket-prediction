@@ -67,7 +67,9 @@ def get_active_subscribers(league: str = "CPL") -> list[dict]:
 
 
 def log_toss_alert(alert: dict) -> None:
-    """Record that a toss alert was generated + sent for a match."""
+    """Record that a toss alert was generated + sent for a match. Upserts the
+    prediction fields rather than just the sent_count, so a pre-toss entry
+    (created ahead of the match) is refreshed in place when the toss lands."""
     import json
 
     conn = get_db_connection()
@@ -78,7 +80,20 @@ def log_toss_alert(alert: dict) -> None:
             toss_winner, toss_decision, predicted_winner, team_a_score, team_b_score,
             confidence, key_factors, sent_count)
            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-           ON CONFLICT (cricbuzz_match_id) DO UPDATE SET sent_count = EXCLUDED.sent_count""",
+           ON CONFLICT (cricbuzz_match_id) DO UPDATE SET
+               match_name = EXCLUDED.match_name,
+               match_date = EXCLUDED.match_date,
+               team_a = EXCLUDED.team_a,
+               team_b = EXCLUDED.team_b,
+               venue = EXCLUDED.venue,
+               toss_winner = EXCLUDED.toss_winner,
+               toss_decision = EXCLUDED.toss_decision,
+               predicted_winner = EXCLUDED.predicted_winner,
+               team_a_score = EXCLUDED.team_a_score,
+               team_b_score = EXCLUDED.team_b_score,
+               confidence = EXCLUDED.confidence,
+               key_factors = EXCLUDED.key_factors,
+               sent_count = EXCLUDED.sent_count""",
         (
             alert["cricbuzz_match_id"], alert.get("match_name"), alert.get("match_date"),
             alert.get("team_a"), alert.get("team_b"), alert.get("venue"),
@@ -100,6 +115,21 @@ def toss_alert_exists(cricbuzz_match_id: str) -> bool:
     cur.close()
     conn.close()
     return exists
+
+
+def toss_alert_has_toss(cricbuzz_match_id: str) -> bool:
+    """True when the stored alert already carries toss info (so the pre-toss
+    entry shouldn't be rebuilt/emailed again once the toss lands)."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT toss_winner FROM toss_alerts WHERE cricbuzz_match_id = %s",
+        (cricbuzz_match_id,),
+    )
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+    return bool(row and row[0])
 
 
 def get_unscored_alerts() -> list[dict]:

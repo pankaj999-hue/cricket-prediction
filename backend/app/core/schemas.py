@@ -49,6 +49,12 @@ class PredictRequest(BaseModel):
     toss_decision: Optional[str] = None
     team_a_xi: Optional[list] = None
     team_b_xi: Optional[list] = None
+    auto_xi: bool = Field(
+        False,
+        description="Auto-fetch the actual playing XI from Cricbuzz for today's "
+                    "match instead of the static squad/expected XI. Falls back "
+                    "silently when no live lineup is available yet.",
+    )
 
 
 class PredictResponse(BaseModel):
@@ -63,3 +69,4 @@ class PredictResponse(BaseModel):
     point_gap: float
     key_factors: list
     layer_breakdown: dict
+    xi_note: Optional[str] = None
