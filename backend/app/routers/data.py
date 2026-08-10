@@ -57,7 +57,7 @@ def get_venues(league: str = "IPL", season: str = "2026"):
     # loaded into the DB — surface them so the UI can still offer them. (venues
     # still work with neutral history until their match data arrives.)
     if league == "CPL":
-        debut = ["Arnos Vale Stadium, Kingstown"]
+        debut = ["Arnos Vale Stadium, Kingstown", "Sabina Park, Kingston"]
         venues = sorted(set(venues) | set(debut))
 
     cur.close()

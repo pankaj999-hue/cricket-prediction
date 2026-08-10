@@ -11,7 +11,7 @@ from app.config import PREDICTION_CACHE_SECONDS
 
 VALID_LEAGUES = ("IPL", "CPL")
 VALID_PITCH_TYPES = ("batting", "bowling", "neutral")
-CPL_DEBUT_VENUES = {"Arnos Vale Stadium, Kingstown"}
+CPL_DEBUT_VENUES = {"Arnos Vale Stadium, Kingstown", "Sabina Park, Kingston"}
 
 # In-memory prediction cache. Two users requesting the same matchup + XIs land
 # on the same key, so the second caller gets the engine's result without
