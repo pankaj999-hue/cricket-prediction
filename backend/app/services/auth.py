@@ -12,6 +12,7 @@ from app.config import (
     COOKIE_SECURE,
     COOKIE_SAMESITE,
     REFRESH_TOKEN_EXPIRE_DAYS,
+    is_admin,
 )
 from app.core.db import get_db_connection
 from app.core.security import (
@@ -23,6 +24,12 @@ from app.core.security import (
     verify_password,
 )
 from app.core.rate_limit import LOGIN_LOCKOUT
+
+# Pre-computed bcrypt hash of a random value, verified against the submitted
+# password when the account does NOT exist. This keeps the login code path
+# roughly constant-time so a timing side-channel can't distinguish "no such
+# user" from "wrong password" (user enumeration).
+_DUMMY_PASSWORD_HASH = hash_password("matchcall-dummy-password")
 
 
 # ---------------------------------------------------------------------------
@@ -114,7 +121,7 @@ def register_account(email: str, password: str, name: str | None) -> dict:
     cur.close()
     conn.close()
 
-    return {"id": str(row[0]), "email": row[1], "name": row[2]}
+    return {"id": str(row[0]), "email": row[1], "name": row[2], "is_admin": is_admin(row[1])}
 
 
 def login_account(email: str, password: str) -> dict:
@@ -136,6 +143,10 @@ def login_account(email: str, password: str) -> dict:
         cur.close()
         conn.close()
         LOGIN_LOCKOUT.record_failure(email)
+        if not row:
+            # Account doesn't exist — burn a bcrypt verification anyway so the
+            # response time matches a real (wrong-password) check.
+            verify_password(password, _DUMMY_PASSWORD_HASH)
         raise HTTPException(status_code=401, detail="Invalid email or password.")
 
     LOGIN_LOCKOUT.record_success(email)
@@ -144,7 +155,7 @@ def login_account(email: str, password: str) -> dict:
     cur.close()
     conn.close()
 
-    return {"id": str(row[0]), "email": row[1], "name": row[2]}
+    return {"id": str(row[0]), "email": row[1], "name": row[2], "is_admin": is_admin(row[1])}
 
 
 def rotate_session(request: Request, response: Response):
@@ -170,7 +181,7 @@ def rotate_session(request: Request, response: Response):
         cur.close()
         conn.close()
         raise HTTPException(status_code=401, detail="User no longer exists")
-    user = {"id": str(u[0]), "email": u[1], "name": u[2]}
+    user = {"id": str(u[0]), "email": u[1], "name": u[2], "is_admin": is_admin(u[1])}
 
     new_pair = issue_token_pair(user)
     cur.execute("UPDATE refresh_tokens SET revoked = TRUE WHERE id = %s", (row[0],))

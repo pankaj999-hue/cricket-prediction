@@ -1,4 +1,7 @@
-from ..utils.data_loader import get_player_recent_form
+from ..utils.data_loader import get_player_recent_form, get_connection
+from ..utils import data_loader
+
+CURRENT_SEASON = '2026'
 
 def calculate(team_a, team_b, venue):
     """Legacy method — kept for compatibility"""
@@ -23,6 +26,14 @@ def calculate_with_players(team_a_players, team_b_players):
         points_a = MAX_POINTS / 2
         points_b = MAX_POINTS / 2
     
+    # Early-season damp: player "form" mostly aggregates innings from previous
+    # seasons until the current one has a real sample. Pull the form edge
+    # toward 50-50 while the current season is young.
+    current_season_matches = _current_season_match_count()
+    swing_scale = 0.6 + 0.4 * min(1.0, current_season_matches / 12.0)
+    points_a = MAX_POINTS/2 + (points_a - MAX_POINTS/2) * swing_scale
+    points_b = MAX_POINTS/2 + (points_b - MAX_POINTS/2) * swing_scale
+    
     return {
         "team_a_points": round(points_a, 2),
         "team_b_points": round(points_b, 2),
@@ -30,9 +41,26 @@ def calculate_with_players(team_a_players, team_b_players):
         "advantage": "team_a" if points_a > points_b else "team_b" if points_b > points_a else "neutral",
         "details": {
             "team_a_form_score": round(team_a_form, 2),
-            "team_b_form_score": round(team_b_form, 2)
+            "team_b_form_score": round(team_b_form, 2),
+            "current_season_matches": current_season_matches,
+            "swing_scale": round(swing_scale, 2)
         }
     }
+
+def _current_season_match_count():
+    """Number of finished (result-present) matches this season for the league."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT COUNT(*) FROM matches WHERE season = %s AND league = %s",
+            (CURRENT_SEASON, data_loader.LEAGUE),
+        )
+        row = cursor.fetchone()
+        cursor.close()
+        return int(row[0]) if row else 0
+    finally:
+        conn.close()
 
 def calculate_team_form(players):
     """Calculate team form from actual 12 players"""

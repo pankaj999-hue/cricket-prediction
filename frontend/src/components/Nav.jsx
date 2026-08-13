@@ -34,7 +34,12 @@ export default function Nav({ status }) {
           <span>{STATUS_TEXT[status] || STATUS_TEXT.connecting}</span>
         </div>
         {user && user.email ? (
-          <a className="nav-auth out" href="#" onClick={handleLogout}>Sign out · {user.email}</a>
+          <>
+            {user.is_admin && (
+              <a className="nav-admin" href="#/admin" onClick={(e) => { e.preventDefault(); navigate('/admin'); }}>Admin</a>
+            )}
+            <a className="nav-auth out" href="#" onClick={handleLogout}>Sign out · {user.email}</a>
+          </>
         ) : (
           <a className="nav-auth" href="/login" onClick={(e) => { e.preventDefault(); navigate('/login'); }}>Sign in</a>
         )}

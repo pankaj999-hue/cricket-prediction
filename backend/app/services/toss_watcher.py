@@ -54,6 +54,12 @@ VENUE_MAP = {
     "Kensington Oval": "Kensington Oval, Bridgetown",
 }
 
+# How long after a match's scheduled start we'll still log a call when the toss
+# hasn't been scraped yet. Covers the full live window (a CPL T20 runs ~3h) so
+# an in-progress match shows up in "Recent calls" even if the toss scrape lags;
+# avoids resurrecting stale alerts for matches that finished days ago.
+LIVE_CREATE_GRACE_HOURS = 6
+
 # Runtime status for the /api/toss-watcher/status probe.
 from app.config import ENVIRONMENT as _ENV
 
@@ -203,8 +209,8 @@ def process_match(match_id, start_ms=None, state=None, dry_run=False) -> bool:
 
     if not has_toss and not start_ms:
         return False
-    if not has_toss and start_ms and now_ms > start_ms:
-        return False  # past start without a recorded toss — skip late noisy alerts
+    if not has_toss and start_ms and now_ms > start_ms + LIVE_CREATE_GRACE_HOURS * 3_600_000:
+        return False  # started too long ago without a scraped toss — skip stale recreates
 
     match_info = get_match_info(match_id)
     match_date = None
@@ -278,10 +284,14 @@ def score_finished(force=False) -> int:
             continue  # match not finished yet
         winner = _map_team(winner)  # Cricbuzz names may differ from DB canonical
         predicted = alert["predicted_winner"]
-        # 'No Bet' rows have no winner, but a real called winner must match.
-        correct = bool(predicted) and predicted == winner
+        # 'No Bet' rows are declines: record the result but never score them as
+        # a correct/wrong call (is_correct NULL excludes them from accuracy).
+        if predicted and predicted == "No Bet":
+            is_correct = None
+        else:
+            is_correct = bool(predicted) and predicted == winner
         try:
-            score_alert(alert["cricbuzz_match_id"], winner, correct)
+            score_alert(alert["cricbuzz_match_id"], winner, is_correct)
             scored += 1
         except Exception as e:
             logger.warning("score error for %s: %s", alert["cricbuzz_match_id"], e)

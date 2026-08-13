@@ -60,9 +60,11 @@ def calculate(team_a, team_b, venue):
     
     # Dampen toward 50-50 when the venue sample is thin — prevents a stale or
     # lopsided historical record from creating false confidence (the main
-    # driver of confident wrong calls on upsets).
+    # driver of confident wrong calls on upsets). Combined needs to reach 24
+    # for full weight: venue records come from seasons with mostly different
+    # squads, so even ~18 old games should not produce a near-max shutout.
     combined = a_matches + b_matches
-    damp = min(1.0, combined / 8.0) if combined > 0 else 0.5
+    damp = min(1.0, combined / 24.0) if combined > 0 else 0.5
     points_a = MAX_POINTS/2 + (points_a - MAX_POINTS/2) * damp
     points_b = MAX_POINTS/2 + (points_b - MAX_POINTS/2) * damp
     

@@ -1,7 +1,7 @@
 # backend/app/routers/subscribe.py
 """Subscribe/unsubscribe to match-toss email alerts."""
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.core.deps import check_same_origin
 from app.services.subscribe import subscribe, unsubscribe
@@ -10,7 +10,7 @@ router = APIRouter(prefix="/api", tags=["subscribe"])
 
 
 class SubscribeRequest(BaseModel):
-    email: str
+    email: str = Field(..., max_length=254)
     league: str = "CPL"
 
 

@@ -70,7 +70,11 @@ export default function Ticker({ teams }) {
     });
   }
 
-  const items = Array.from({ length: 12 }, (_, i) => {
+  // Seamless marquee: the track is N identical full cycles of the entries, so
+  // translateX(-50%) always lands exactly on a cycle boundary (no jump). With
+  // a fixed 12 items that only looped cleanly when 12 % entries.length == 0.
+  const cycles = 6;
+  const items = Array.from({ length: cycles * entries.length }, (_, i) => {
     const e = entries[i % entries.length];
     return (
       <div className="ticker-item" key={i}>

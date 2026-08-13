@@ -27,6 +27,9 @@ build/
 uvicorn.out.log
 uvicorn.err.log
 
+# Agent session transcripts
+session-*.md
+
 # OS
 .DS_Store
 Thumbs.db

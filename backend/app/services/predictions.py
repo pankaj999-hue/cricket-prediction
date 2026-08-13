@@ -19,6 +19,14 @@ CPL_DEBUT_VENUES = {"Arnos Vale Stadium, Kingstown", "Sabina Park, Kingston"}
 # MAX_ENTRIES by evicting oldest entries regardless of age.
 PREDICTION_CACHE_MAX = 256
 
+# Cap on how many 10-layer engine runs may be in flight at once. Each run is
+# minutes-long and hammers the DB; without this cap a handful of concurrent
+# cold-cache predicts exhausts the 20-connection pool and the whole API stops
+# responding (trivial DoS). Requests beyond the cap get a fast 503 instead of
+# queuing — their retry will hit the cache once the first run lands.
+PREDICTION_MAX_CONCURRENT = 2
+_PREDICTION_SEMAPHORE = threading.BoundedSemaphore(PREDICTION_MAX_CONCURRENT)
+
 
 def _prediction_cache():
     """Lazily-built {key: (expires_at, result)} guarded by a lock."""
@@ -112,18 +120,26 @@ def run_prediction(req) -> dict:
 
     from engine.predictor import predict_match
 
-    result = predict_match(
-        team_a=req.team_a,
-        team_b=req.team_b,
-        venue=req.venue,
-        stage=req.stage,
-        league=req.league,
-        pitch_type=req.pitch_type,
-        toss_winner=req.toss_winner,
-        toss_decision=req.toss_decision,
-        team_a_xi=req.team_a_xi,
-        team_b_xi=req.team_b_xi,
-    )
+    if not _PREDICTION_SEMAPHORE.acquire(blocking=False):
+        raise HTTPException(
+            status_code=503,
+            detail="Prediction engine is at capacity — retry in a moment.",
+        )
+    try:
+        result = predict_match(
+            team_a=req.team_a,
+            team_b=req.team_b,
+            venue=req.venue,
+            stage=req.stage,
+            league=req.league,
+            pitch_type=req.pitch_type,
+            toss_winner=req.toss_winner,
+            toss_decision=req.toss_decision,
+            team_a_xi=req.team_a_xi,
+            team_b_xi=req.team_b_xi,
+        )
+    finally:
+        _PREDICTION_SEMAPHORE.release()
     result["xi_note"] = xi_note
     _cache_put(key, result)
     return result
@@ -137,6 +153,8 @@ def validate_predict_request(req) -> None:
         raise HTTPException(status_code=400, detail=f"league must be {', '.join(VALID_LEAGUES)}.")
     if req.pitch_type and req.pitch_type not in VALID_PITCH_TYPES:
         raise HTTPException(status_code=400, detail=f"pitch_type must be one of {', '.join(VALID_PITCH_TYPES)} or null.")
+    if req.toss_decision and req.toss_decision.lower() not in ("batting", "bowling"):
+        raise HTTPException(status_code=400, detail="toss_decision must be 'batting' or 'bowling' or null.")
 
     conn = get_db_connection()
     try:
@@ -163,6 +181,8 @@ def validate_predict_request(req) -> None:
         raise HTTPException(status_code=400, detail=f"Unknown team '{req.team_b}' for {req.league}.")
     if req.venue not in venues:
         raise HTTPException(status_code=400, detail=f"Unknown venue '{req.venue}' for {req.league}.")
+    if req.toss_winner and req.toss_winner not in (req.team_a, req.team_b):
+        raise HTTPException(status_code=400, detail="toss_winner must be one of the two teams or null.")
 
 
 def log_prediction(user_id: str, req, result: dict) -> None:

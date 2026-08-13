@@ -32,3 +32,7 @@ services:
       #   ALLOWED_ORIGINS=https://matchcall.vercel.app
       - key: ALLOWED_ORIGINS
         sync: false
+      # Accounts allowed to load match data via the /admin panel
+      # (comma-separated emails). Leave empty to keep everyone read-only.
+      - key: ADMIN_EMAILS
+        sync: false

@@ -17,9 +17,9 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
-from app.config import ALLOWED_ORIGINS, ENABLE_HSTS
+from app.config import ALLOWED_ORIGINS, ENABLE_HSTS, IS_PRODUCTION
 from app.core.security_headers import SecurityHeadersMiddleware
-from app.routers import auth, data, predict, subscribe
+from app.routers import admin, auth, data, predict, subscribe
 
 # React frontend: the built Vite app lives in repo-root/frontend/dist.
 # Falls back to serving the raw frontend dir when no build exists yet.
@@ -48,7 +48,14 @@ def _start_toss_watcher(app: FastAPI) -> None:
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="MATCHCALL Prediction Engine API")
+    # Never publish the interactive API docs / OpenAPI schema in production:
+    # they leak the full endpoint + model surface to anyone on the internet.
+    app = FastAPI(
+        title="MATCHCALL Prediction Engine API",
+        docs_url=None if IS_PRODUCTION else "/docs",
+        redoc_url=None if IS_PRODUCTION else "/redoc",
+        openapi_url=None if IS_PRODUCTION else "/openapi.json",
+    )
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
@@ -74,6 +81,7 @@ def create_app() -> FastAPI:
         return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
     app.include_router(auth.router)
+    app.include_router(admin.router)
     app.include_router(data.router)
     app.include_router(predict.router)
     app.include_router(subscribe.router)

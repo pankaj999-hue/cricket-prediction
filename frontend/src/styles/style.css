@@ -99,6 +99,12 @@ nav{
 .nav-auth:hover{background:var(--green);color:#0A0A0A;}
 .nav-auth.out{color:var(--pink-2);border-color:var(--pink-2);}
 .nav-auth.out:hover{background:var(--pink-2);color:#fff;}
+.nav-admin{
+  font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:0.04em;
+  color:var(--text-dim);text-decoration:none;border:1px solid rgba(255,255,255,0.2);
+  padding:8px 14px;border-radius:8px;cursor:pointer;white-space:nowrap;
+}
+.nav-admin:hover{color:var(--green);border-color:var(--green);}
 .pulse{
   width:7px;height:7px;border-radius:50%;background:var(--pink-2);
   animation:pulse 2s infinite;

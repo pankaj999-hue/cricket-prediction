@@ -14,6 +14,9 @@ def _is_production() -> bool:
     return ENVIRONMENT == "production" or on_platform
 
 
+IS_PRODUCTION = _is_production()
+
+
 # Database
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/cricket_predictor")
 
@@ -53,6 +56,18 @@ _allowed_env = [
     if o.strip()
 ]
 ALLOWED_ORIGINS = list(dict.fromkeys(_allowed_env + PRODUCTION_FRONTEND_ORIGINS))
+
+# Emails allowed to load match data via the admin panel (comma-separated).
+ADMIN_EMAILS = {
+    e.strip().lower()
+    for e in os.getenv("ADMIN_EMAILS", "").split(",")
+    if e.strip()
+}
+
+
+def is_admin(email: str | None) -> bool:
+    return bool(email and email.strip().lower() in ADMIN_EMAILS)
+
 
 # Toss-alert emails (Resend)
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")

@@ -177,8 +177,11 @@ def get_unscored_alerts() -> list[dict]:
     return rows
 
 
-def score_alert(cricbuzz_match_id: str, result_winner: str, is_correct: bool) -> None:
-    """Record the actual match winner and whether our call was right."""
+def score_alert(cricbuzz_match_id: str, result_winner: str, is_correct: bool | None) -> None:
+    """Record the actual match winner and whether our call was right.
+
+    is_correct=None marks a decline (No Bet) — recorded but not counted in
+    accuracy calls."""
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute(
@@ -210,34 +213,42 @@ def recent_records(limit: int = 8) -> dict:
             "match_id": str(r[10]),
             "match": r[0] or (f"{r[1]} vs {r[2]}"),
             "pick": "No Bet" if no_bet else (predicted or ""),
-            "confidence": "—" if no_bet else (r[4] or ""),
+            "confidence": "Decline" if no_bet else (r[4] or ""),
             "no_bet": no_bet,
             "team_a_score": float(r[5] or 0),
             "team_b_score": float(r[6] or 0),
-            "is_correct": r[7] if r[7] is not None else None,
+            "is_correct": None if no_bet else (r[7] if r[7] is not None else None),
             "result_winner": r[8],
             "toss": r[9],
         })
 
+    # Calls accuracy counts only team calls (is_correct set, not a No Bet).
+    # Declines are tallied separately and never count as wrong.
     cur.execute(
         """SELECT count(*),
-                  count(*) FILTER (WHERE is_correct = TRUE),
-                  count(*) FILTER (WHERE predicted_winner = 'No Bet')
-           FROM toss_alerts WHERE is_correct IS NOT NULL"""
+                  count(*) FILTER (WHERE is_correct = TRUE)
+           FROM toss_alerts
+           WHERE is_correct IS NOT NULL AND predicted_winner <> 'No Bet'"""
     )
-    total, correct, no_bets = cur.fetchone()
+    calls_total, calls_correct = cur.fetchone()
+    cur.execute(
+        "SELECT count(*) FROM toss_alerts WHERE result_winner IS NOT NULL AND predicted_winner = 'No Bet'"
+    )
+    no_bets = cur.fetchone()[0]
     cur.close()
     conn.close()
 
-    calls = (total or 0) - (no_bets or 0)
-    pct = round((correct or 0) / calls * 100) if calls else 0
+    calls_total = calls_total or 0
+    calls_correct = calls_correct or 0
+    no_bets = no_bets or 0
+    pct = round(calls_correct / calls_total * 100) if calls_total else 0
     return {
         "records": rows,
         "accuracy": {
-            "calls": calls,
-            "correct": correct or 0,
-            "wrong": max(0, calls - (correct or 0)),
-            "no_bet": no_bets or 0,
+            "calls": calls_total,
+            "correct": calls_correct,
+            "wrong": max(0, calls_total - calls_correct),
+            "no_bet": no_bets,
             "pct": pct,
         },
     }
