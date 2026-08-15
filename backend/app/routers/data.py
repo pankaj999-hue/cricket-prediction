@@ -31,27 +31,21 @@ def get_teams(league: str = "IPL", season: str = "2026"):
 
 @router.get("/venues")
 def get_venues(league: str = "IPL", season: str = "2026"):
-    """Distinct venues for a league/season. Falls back to the most recent season
-    that has data when the requested season has no matches yet (e.g. CPL 2026)."""
+    """Distinct venues for a league/season, unioned with every venue the league
+    has ever used. A partially-loaded current season (e.g. CPL 2026 with only
+    its first grounds) shouldn't starve the venue dropdown of real options."""
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute(
-        "SELECT DISTINCT venue FROM matches WHERE league = %s AND season = %s ORDER BY venue",
+        "SELECT DISTINCT venue FROM matches WHERE league = %s AND season = %s",
         (league, season),
     )
     venues = [r[0] for r in cur.fetchall()]
-    if not venues:
-        cur.execute(
-            "SELECT COALESCE(MAX(season), %s) FROM matches WHERE league = %s",
-            (season, league),
-        )
-        latest = cur.fetchone()[0]
-        cur.execute(
-            "SELECT DISTINCT venue FROM matches WHERE league = %s AND season = %s ORDER BY venue",
-            (league, latest),
-        )
-        venues = [r[0] for r in cur.fetchall()]
-        season = latest
+    cur.execute(
+        "SELECT DISTINCT venue FROM matches WHERE league = %s",
+        (league,),
+    )
+    venues = sorted(set(venues) | {r[0] for r in cur.fetchall()})
 
     # Known new-season venues that host their first matches in a season not yet
     # loaded into the DB — surface them so the UI can still offer them. (venues
