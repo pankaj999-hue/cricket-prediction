@@ -188,6 +188,8 @@ def _backfill_complete(match_id, dry_run=False) -> bool:
     pick is generated from toss/XI only (the result is fetched afterwards), so
     it is a genuine prediction, not a result leak."""
     try:
+        if toss_alert_exists(str(match_id)):
+            return False  # an alert already exists — never re-predict it
         match_info = get_match_info(match_id)
         toss = get_toss(match_id)
         team_a_xi, team_b_xi = _scraped_xi(match_info, match_id)
@@ -221,6 +223,8 @@ def process_match(match_id, start_ms=None, state=None, dry_run=False) -> bool:
     (missed live window) are backfilled so every completed match still shows up.
     """
     if state and str(state).lower() in ("complete", "abandoned"):
+        if toss_alert_exists(str(match_id)):
+            return False  # already logged — never re-predict a finished match
         return _backfill_complete(match_id, dry_run=dry_run)
     if start_ms:
         try:
