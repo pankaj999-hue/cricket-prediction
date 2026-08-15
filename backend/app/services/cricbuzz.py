@@ -103,10 +103,33 @@ RESULT_RE = re.compile(r'"result":\{')
 # Public accessors
 # ---------------------------------------------------------------------------
 def get_match_info(match_id: int) -> dict:
-    """Fetch a match page and return its embedded matchInfo block."""
+    """Fetch a match page and return its embedded matchInfo block.
+
+    The page embeds several matchInfo blocks: a commentary variant with bare
+    team1/team2 (name + playerDetails, no venueInfo) and a fixture variant with
+    teamName + venueInfo. Prefer the fixture variant, falling back to the first
+    parseable block."""
     html = _fetch(MATCH_PAGE_URL.format(match_id=match_id))
     flight = decode_next_payload(html)
-    return _first_object(flight, re.compile(r'"matchInfo":\{"matchId":%d' % int(match_id))) or {}
+    pat = re.compile(r'"matchInfo":\{"matchId":%d' % int(match_id))
+    for m in pat.finditer(flight):
+        start = m.start() + m.group(0).rfind("{")
+        end = balanced_json(flight, start)
+        if end < 0:
+            continue
+        try:
+            obj = json.loads(flight[start:end])
+        except Exception:
+            continue
+        t1, t2 = (obj.get("team1") or {}), (obj.get("team2") or {})
+        if t1.get("teamName") and t2.get("teamName") and obj.get("venueInfo"):
+            return obj
+    # The match page sometimes embeds only the commentary variant (no
+    # venueInfo). The series schedule always carries the full fixture variant.
+    for m in get_series_matches():
+        if int(m.get("matchId") or 0) == int(match_id):
+            return m
+    return _first_object(flight, pat) or {}
 
 
 def get_toss(match_id: int) -> dict:

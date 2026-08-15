@@ -178,15 +178,50 @@ def _build_alert(match_id, match_info, toss, match_date, team_a_xi=None, team_b_
     }
 
 
+def _backfill_complete(match_id, dry_run=False) -> bool:
+    """Log + score an engine call for a finished match that has no alert yet.
+
+    The poller only runs while the process is alive; on a sleeping free-tier
+    box a match's whole pre-match/toss window can pass unobserved. When that
+    happens the match shows up here as Complete with no toss_alerts row, so
+    rebuild the call now from the final toss + playing XI and score it. The
+    pick is generated from toss/XI only (the result is fetched afterwards), so
+    it is a genuine prediction, not a result leak."""
+    try:
+        match_info = get_match_info(match_id)
+        toss = get_toss(match_id)
+        team_a_xi, team_b_xi = _scraped_xi(match_info, match_id)
+        alert = _build_alert(
+            match_id, match_info, toss, None,
+            team_a_xi=team_a_xi, team_b_xi=team_b_xi,
+        )
+        if dry_run:
+            return True
+        log_toss_alert(alert)
+        result = get_result(match_id)
+        winner = _map_team((result or {}).get("winningTeam"))
+        if winner:
+            predicted = alert["predicted_winner"]
+            is_correct = None if (predicted and predicted == "No Bet") else bool(predicted) and predicted == winner
+            score_alert(str(match_id), winner, is_correct)
+        logger.info("backfilled finished match %s (%s)", match_id, winner or "no result")
+        return True
+    except Exception as e:
+        logger.warning("backfill failed for %s: %s", match_id, e)
+        return False
+
+
 def process_match(match_id, start_ms=None, state=None, dry_run=False) -> bool:
     """Handle a single match.
 
     Pre-match (start minus PRE_MATCH_MINUTES) — run the engine on the scraped
     live XI (no toss yet) and log it so the Recent-calls tab gets a call ahead
     of the toss. Once the toss lands, rebuild the same alert with the toss info
-    (upserted in place) and email subscribers."""
+    (upserted in place) and email subscribers. Finished matches with no alert
+    (missed live window) are backfilled so every completed match still shows up.
+    """
     if state and str(state).lower() in ("complete", "abandoned"):
-        return False  # score_finished() settles finished matches
+        return _backfill_complete(match_id, dry_run=dry_run)
     if start_ms:
         try:
             start_ms = float(start_ms)
