@@ -20,8 +20,9 @@ CONFIDENCE_MEDIUM = 8  # Gap of 8-14 points
 # CPL gate is stricter than IPL: CPL medium calls near 8-10 gaps landed near
 # coin-flip (40%) in backtests. Sweep of 2024-25 CPL found threshold 12 gives
 # 85.7% call accuracy while keeping decline at 47% (vs 54.5% at 15, 73.3% at 8).
-# IPL keeps Medium as a valid call (validated ~85% across 2024-25/2026).
-CONFIDENCE_MEDIUM_CPL = 12  # CPL requires a High-grade gap to make a call
+# Threshold relaxed to 10 so more CPL games get a call at a modest accuracy
+# tradeoff. IPL keeps Medium as a valid call (validated ~85% across 2024-25/2026).
+CONFIDENCE_MEDIUM_CPL = 10  # CPL requires a 10+ point gap to make a call
 
 # Gating — only emit a team call when confidence is High or Medium.
 # Low-confidence games are "No Bet": not betting is still profit.
